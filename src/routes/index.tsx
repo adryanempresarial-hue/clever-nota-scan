@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Upload,
@@ -119,7 +119,8 @@ function NotaTool() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [records, setRecords] = useState<NotaRecord[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>(() => loadHistory());
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [mounted, setMounted] = useState(false);
   const [exportDialog, setExportDialog] = useState<{
     kind: ExportKind;
     emailsOnly: boolean;
@@ -127,6 +128,22 @@ function NotaTool() {
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
   const inputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
+
+  useEffect(() => {
+    setMounted(true);
+    setHistory(loadHistory());
+    try {
+      const saved = localStorage.getItem("nota.records");
+      if (saved) setRecords(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem("nota.records", JSON.stringify(records));
+    } catch {}
+  }, [records, mounted]);
 
   const addFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
@@ -160,6 +177,7 @@ function NotaTool() {
         })),
       );
       const res = await extract({ data: { files: payload } });
+      console.log("[NOTA] SAVED_DATA", res.records);
       setRecords(res.records);
       setProgress(100);
       toast.success(`${res.records.length} documento(s) processado(s)`);
@@ -180,6 +198,7 @@ function NotaTool() {
   }, [records]);
 
   const openExport = (kind: ExportKind, emailsOnly = false) => {
+    if (processing) return toast.error("Aguarde o processamento terminar");
     if (records.length === 0) return toast.error("Processe documentos primeiro");
     if (emailsOnly && allEmails.length === 0) return toast.error("Nenhum e-mail encontrado");
     setExportMode("new");
@@ -189,12 +208,17 @@ function NotaTool() {
   const doExport = async () => {
     if (!exportDialog) return;
     const { kind, emailsOnly } = exportDialog;
+    if (records.length === 0) {
+      toast.error("Nenhum dado para exportar");
+      return;
+    }
     const base = emailsOnly ? "emails" : "clientes";
     const name = nextVersionedName(base, kind, history);
     try {
       const data = emailsOnly
         ? allEmails.map((e) => ({ _arquivo: "", email: e }) as NotaRecord)
         : records;
+      console.log(`[NOTA] EXPORT_${kind.toUpperCase()}_DATA`, data);
       if (kind === "xlsx") await exportXlsx(name, data, emailsOnly);
       else if (kind === "pdf") await exportPdf(name, data, emailsOnly);
       else await exportDocx(name, data, emailsOnly);
@@ -259,7 +283,7 @@ function NotaTool() {
             </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
-              Arquivos Gerados ({history.length})
+              Arquivos Gerados{mounted ? ` (${history.length})` : ""}
             </TabsTrigger>
           </TabsList>
 
@@ -549,17 +573,37 @@ function downloadBlob(blob: Blob, name: string) {
 async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boolean) {
   const XLSX = await import("xlsx");
   let rows: Record<string, string>[];
+  let headers: string[];
   if (emailsOnly) {
+    headers = ["E-mail"];
     rows = records.map((r) => ({ "E-mail": r.email || "" }));
   } else {
+    headers = [
+      "Nome",
+      "CPF",
+      "CNPJ",
+      "E-mail",
+      "Telefone",
+      "CEP",
+      "Endereço",
+      "Número",
+      "Bairro",
+      "Cidade",
+      "Estado",
+      "Nota Fiscal",
+      "Data",
+      "Valor",
+    ];
     rows = records.map((r) => ({
       Nome: r.nome || "",
       CPF: r.cpf || "",
+      CNPJ: r.cnpj || "",
       "E-mail": r.email || "",
       Telefone: r.telefone || "",
       CEP: r.cep || "",
       Endereço: r.endereco || "",
       Número: r.numero || "",
+      Bairro: r.bairro || "",
       Cidade: r.cidade || "",
       Estado: r.estado || "",
       "Nota Fiscal": r.notaFiscal || "",
@@ -567,7 +611,21 @@ async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boole
       Valor: r.valor || "",
     }));
   }
-  const ws = XLSX.utils.json_to_sheet(rows);
+  const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
+  // Column widths (auto-fit)
+  ws["!cols"] = headers.map((h) => {
+    const max = Math.max(
+      h.length,
+      ...rows.map((r) => String((r as Record<string, string>)[h] ?? "").length),
+    );
+    return { wch: Math.min(Math.max(max + 2, 10), 50) };
+  });
+  // Freeze header row
+  ws["!freeze"] = { xSplit: 0, ySplit: 1 };
+  ws["!views"] = [{ state: "frozen", ySplit: 1 }];
+  // Auto filter on header row
+  const lastCol = XLSX.utils.encode_col(headers.length - 1);
+  ws["!autofilter"] = { ref: `A1:${lastCol}${rows.length + 1}` };
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Dados");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -582,7 +640,7 @@ async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boole
 async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolean) {
   const { default: jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: emailsOnly ? "p" : "l" });
   doc.setFillColor(20, 120, 150);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 22, "F");
   doc.setTextColor(255, 255, 255);
@@ -608,18 +666,41 @@ async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolea
     });
   } else {
     autoTable(doc, {
-      head: [["Nome", "CPF", "E-mail", "Telefone", "Cidade", "Valor"]],
+      head: [[
+        "Nome",
+        "CPF/CNPJ",
+        "E-mail",
+        "Telefone",
+        "Endereço",
+        "Cidade/UF",
+        "Nota",
+        "Data",
+        "Valor",
+      ]],
       body: records.map((r) => [
         r.nome || "",
-        r.cpf || "",
+        r.cpf || r.cnpj || "",
         r.email || "",
         r.telefone || "",
-        r.cidade || "",
+        [r.endereco, r.numero, r.bairro].filter(Boolean).join(", "),
+        [r.cidade, r.estado].filter(Boolean).join("/"),
+        r.notaFiscal || "",
+        r.data || "",
         r.valor || "",
       ]),
       startY: 38,
       headStyles: { fillColor: [20, 120, 150] },
-      styles: { fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 2, overflow: "linebreak" },
+        didDrawPage: () => {
+        const str = `Página ${doc.getNumberOfPages()}`;
+        doc.setFontSize(8);
+        doc.text(
+          str,
+          doc.internal.pageSize.getWidth() - 14,
+          doc.internal.pageSize.getHeight() - 8,
+          { align: "right" },
+        );
+      },
     });
   }
   downloadBlob(doc.output("blob"), name);
