@@ -65,6 +65,7 @@ export const extractFromFiles = createServerFn({ method: "POST" })
               },
             ],
           });
+          console.log("[NOTA] EXTRACTED_DATA", file.name, JSON.stringify(object));
           return { ...object, _arquivo: file.name } as NotaRecord;
         } catch (e) {
           console.error("extract failed for", file.name, e);
@@ -73,5 +74,6 @@ export const extractFromFiles = createServerFn({ method: "POST" })
       }),
     );
 
+    console.log("[NOTA] OCR_RESULT total registros:", results.length);
     return { records: results };
   });
