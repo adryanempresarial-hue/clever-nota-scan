@@ -691,7 +691,7 @@ async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolea
       startY: 38,
       headStyles: { fillColor: [20, 120, 150] },
       styles: { fontSize: 8, cellPadding: 2, overflow: "linebreak" },
-      didDrawPage: (data) => {
+        didDrawPage: () => {
         const str = `Página ${doc.getNumberOfPages()}`;
         doc.setFontSize(8);
         doc.text(
