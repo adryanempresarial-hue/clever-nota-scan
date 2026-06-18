@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Upload,
@@ -119,7 +119,8 @@ function NotaTool() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [records, setRecords] = useState<NotaRecord[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>(() => loadHistory());
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [mounted, setMounted] = useState(false);
   const [exportDialog, setExportDialog] = useState<{
     kind: ExportKind;
     emailsOnly: boolean;
@@ -127,6 +128,22 @@ function NotaTool() {
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
   const inputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
+
+  useEffect(() => {
+    setMounted(true);
+    setHistory(loadHistory());
+    try {
+      const saved = localStorage.getItem("nota.records");
+      if (saved) setRecords(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem("nota.records", JSON.stringify(records));
+    } catch {}
+  }, [records, mounted]);
 
   const addFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
@@ -160,6 +177,7 @@ function NotaTool() {
         })),
       );
       const res = await extract({ data: { files: payload } });
+      console.log("[NOTA] SAVED_DATA", res.records);
       setRecords(res.records);
       setProgress(100);
       toast.success(`${res.records.length} documento(s) processado(s)`);
@@ -180,6 +198,7 @@ function NotaTool() {
   }, [records]);
 
   const openExport = (kind: ExportKind, emailsOnly = false) => {
+    if (processing) return toast.error("Aguarde o processamento terminar");
     if (records.length === 0) return toast.error("Processe documentos primeiro");
     if (emailsOnly && allEmails.length === 0) return toast.error("Nenhum e-mail encontrado");
     setExportMode("new");
@@ -189,12 +208,17 @@ function NotaTool() {
   const doExport = async () => {
     if (!exportDialog) return;
     const { kind, emailsOnly } = exportDialog;
+    if (records.length === 0) {
+      toast.error("Nenhum dado para exportar");
+      return;
+    }
     const base = emailsOnly ? "emails" : "clientes";
     const name = nextVersionedName(base, kind, history);
     try {
       const data = emailsOnly
         ? allEmails.map((e) => ({ _arquivo: "", email: e }) as NotaRecord)
         : records;
+      console.log(`[NOTA] EXPORT_${kind.toUpperCase()}_DATA`, data);
       if (kind === "xlsx") await exportXlsx(name, data, emailsOnly);
       else if (kind === "pdf") await exportPdf(name, data, emailsOnly);
       else await exportDocx(name, data, emailsOnly);
@@ -259,7 +283,7 @@ function NotaTool() {
             </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
-              Arquivos Gerados ({history.length})
+              Arquivos Gerados{mounted ? ` (${history.length})` : ""}
             </TabsTrigger>
           </TabsList>
 
