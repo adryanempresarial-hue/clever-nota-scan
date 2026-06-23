@@ -421,6 +421,60 @@ function NotaTool() {
           </TabsContent>
 
           <TabsContent value="historico">
+          </TabsContent>
+
+          <TabsContent value="salvos" className="space-y-4">
+            {records.length === 0 ? (
+              <Card className="p-12 text-center text-muted-foreground">
+                <FileImage className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                Nenhum registro salvo ainda. Processe documentos na aba "Processar".
+              </Card>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold">
+                    {records.length} registro(s) salvo(s)
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openExport("docx")}>
+                      <FileType className="w-4 h-4 mr-2" /> Word
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openExport("xlsx")}>
+                      <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openExport("pdf")}>
+                      <FileText className="w-4 h-4 mr-2" /> PDF
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm("Remover todos os registros salvos?")) {
+                          setRecords([]);
+                          toast.success("Registros removidos");
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" /> Limpar todos
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {records.map((r, idx) => (
+                    <RecordCard
+                      key={idx}
+                      record={r}
+                      onDelete={() =>
+                        setRecords((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="historico-old" className="hidden">
             {history.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
                 <History className="w-10 h-10 mx-auto mb-3 opacity-50" />
