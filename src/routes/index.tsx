@@ -291,6 +291,7 @@ function NotaTool() {
           </TabsList>
 
           <TabsContent value="processar" className="space-y-6">
+            <QuickSnippets />
             <Card
               className="p-8 border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer"
               onDragOver={(e) => e.preventDefault()}
