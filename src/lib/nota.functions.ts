@@ -88,6 +88,26 @@ export const extractFromFiles = createServerFn({ method: "POST" })
     const isEmpty = (obj: Record<string, unknown>) =>
       Object.values(obj).every((v) => v == null || v === "");
 
+    const LOWER = new Set(["de", "da", "do", "das", "dos", "e", "di", "du"]);
+    const toTitle = (s: string) =>
+      s
+        .toLocaleLowerCase("pt-BR")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((w, i) =>
+          LOWER.has(w) && i > 0
+            ? w
+            : w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1),
+        )
+        .join(" ");
+
+    const normalize = (r: Record<string, unknown>) => {
+      if (typeof r.nome === "string" && r.nome.trim()) r.nome = toTitle(r.nome.trim());
+      if (typeof r.email === "string" && r.email.trim())
+        r.email = r.email.trim().toLowerCase();
+      return r;
+    };
+
     const results = await Promise.all(
       data.files.map(async (file) => {
         try {
@@ -96,6 +116,7 @@ export const extractFromFiles = createServerFn({ method: "POST" })
             console.log("[NOTA] RETRY empty result for", file.name);
             object = await extractOne(file);
           }
+          normalize(object as Record<string, unknown>);
           console.log("[NOTA] EXTRACTED_DATA", file.name, JSON.stringify(object));
           return { ...object, _arquivo: file.name } as NotaRecord;
         } catch (e) {
