@@ -16,9 +16,12 @@ import {
   History,
   Sparkles,
   X,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -288,6 +291,7 @@ function NotaTool() {
           </TabsList>
 
           <TabsContent value="processar" className="space-y-6">
+            <QuickSnippets />
             <Card
               className="p-8 border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer"
               onDragOver={(e) => e.preventDefault()}
@@ -510,7 +514,14 @@ function RecordCard({ record }: { record: NotaRecord }) {
   return (
     <Card className="p-5 space-y-3">
       <div className="flex items-center justify-between gap-2 pb-2 border-b">
-        <span className="text-xs text-muted-foreground truncate">{record._arquivo}</span>
+        <div className="min-w-0 flex-1">
+          {record.nome ? (
+            <div className="font-semibold text-foreground truncate">{record.nome}</div>
+          ) : (
+            <div className="font-semibold text-muted-foreground italic">Sem nome identificado</div>
+          )}
+          <span className="text-xs text-muted-foreground truncate block">{record._arquivo}</span>
+        </div>
         <Button size="sm" variant="outline" onClick={copyAll}>
           {copiedAll ? (
             <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
@@ -559,6 +570,111 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 }
 
 // ---------- Exportadores ----------
+
+const FIXED_NUMBERS: { label: string; value: string }[] = [
+  { label: "Código 1", value: "1180521" },
+  { label: "Código 2", value: "200048" },
+  { label: "Código 3", value: "050201" },
+];
+
+const DEFAULT_MESSAGE =
+  "Prestação de Serviços de Hotelaria – Período: 19 à 21 de Junho de 2026";
+
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={async () => {
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+        toast.success("Copiado");
+      }}
+      aria-label={`Copiar ${label ?? "valor"}`}
+    >
+      {copied ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+    </Button>
+  );
+}
+
+function QuickSnippets() {
+  const [message, setMessage] = useState(DEFAULT_MESSAGE);
+  const [editing, setEditing] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    try {
+      const saved = localStorage.getItem("nota.quickMessage");
+      if (saved) setMessage(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      localStorage.setItem("nota.quickMessage", message);
+    } catch {}
+  }, [message, mounted]);
+
+  return (
+    <Card className="p-5 space-y-4">
+      <div>
+        <h3 className="font-semibold text-foreground">Atalhos rápidos</h3>
+        <p className="text-xs text-muted-foreground">
+          Códigos fixos e mensagem padrão para copiar com um clique.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {FIXED_NUMBERS.map((n) => (
+          <div
+            key={n.value}
+            className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <div className="text-xs text-muted-foreground">{n.label}</div>
+              <div className="font-mono text-sm font-medium truncate">{n.value}</div>
+            </div>
+            <CopyButton value={n.value} label={n.label} />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-2">
+        <div className="text-xs text-muted-foreground">Mensagem padrão</div>
+        <div className="flex items-start gap-2">
+          {editing ? (
+            <Input
+              autoFocus
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onBlur={() => setEditing(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setEditing(false);
+              }}
+              className="flex-1"
+            />
+          ) : (
+            <div className="flex-1 rounded-md border bg-muted/30 px-3 py-2 text-sm text-foreground break-words">
+              {message}
+            </div>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setEditing((v) => !v)}
+            aria-label={editing ? "Concluir edição" : "Editar mensagem"}
+          >
+            {editing ? <Check className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+          </Button>
+          <CopyButton value={message} label="mensagem" />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
