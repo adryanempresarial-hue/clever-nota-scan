@@ -420,9 +420,6 @@ function NotaTool() {
             )}
           </TabsContent>
 
-          <TabsContent value="historico">
-          </TabsContent>
-
           <TabsContent value="salvos" className="space-y-4">
             {records.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
@@ -474,7 +471,7 @@ function NotaTool() {
             )}
           </TabsContent>
 
-          <TabsContent value="historico-old" className="hidden">
+          <TabsContent value="historico">
             {history.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
                 <History className="w-10 h-10 mx-auto mb-3 opacity-50" />
