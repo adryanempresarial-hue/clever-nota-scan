@@ -284,6 +284,10 @@ function NotaTool() {
               <FileText className="w-4 h-4 mr-2" />
               Processar
             </TabsTrigger>
+            <TabsTrigger value="salvos">
+              <FileImage className="w-4 h-4 mr-2" />
+              Salvos{mounted ? ` (${records.length})` : ""}
+            </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
               Arquivos Gerados{mounted ? ` (${history.length})` : ""}
@@ -497,7 +501,7 @@ function NotaTool() {
   );
 }
 
-function RecordCard({ record }: { record: NotaRecord }) {
+function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () => void }) {
   const [copiedAll, setCopiedAll] = useState(false);
   const entries = (Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[])
     .map((k) => [k, record[k]] as const)
@@ -530,6 +534,16 @@ function RecordCard({ record }: { record: NotaRecord }) {
           )}
           Copiar tudo
         </Button>
+        {onDelete && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onDelete}
+            aria-label="Remover registro"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground italic">
