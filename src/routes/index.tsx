@@ -61,21 +61,16 @@ const ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "applica
 const ACCEPT_ATTR = ".jpg,.jpeg,.png,.webp,.pdf";
 const MAX_FILES = 10;
 
-const FIELD_LABELS: Record<keyof Omit<NotaRecord, "_arquivo">, string> = {
+// Ordem FIXA de campos extraídos e exibidos em todos os documentos
+const FIELD_ORDER = ["nome", "cpf", "telefone", "email", "cep", "numero"] as const;
+type FieldKey = (typeof FIELD_ORDER)[number];
+const FIELD_LABELS: Record<FieldKey, string> = {
   nome: "Nome",
   cpf: "CPF",
-  cnpj: "CNPJ",
-  email: "E-mail",
   telefone: "Telefone",
+  email: "E-mail",
   cep: "CEP",
-  endereco: "Endereço",
   numero: "Número",
-  bairro: "Bairro",
-  cidade: "Cidade",
-  estado: "Estado",
-  notaFiscal: "Número da Nota Fiscal",
-  data: "Data da Nota",
-  valor: "Valor Total",
 };
 
 type ExportKind = "docx" | "xlsx" | "pdf";
@@ -554,12 +549,12 @@ function NotaTool() {
 
 function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () => void }) {
   const [copiedAll, setCopiedAll] = useState(false);
-  const entries = (Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[])
-    .map((k) => [k, record[k]] as const)
-    .filter(([, v]) => v != null && v !== "");
+  const entries = FIELD_ORDER.map((k) => [k, record[k]] as const);
 
   const copyAll = async () => {
-    const text = entries.map(([k, v]) => `${FIELD_LABELS[k]}: ${v}`).join("\n");
+    const text = entries
+      .map(([k, v]) => `${FIELD_LABELS[k]}: ${v ?? ""}`)
+      .join("\n");
     await navigator.clipboard.writeText(text);
     setCopiedAll(true);
     setTimeout(() => setCopiedAll(false), 1500);
@@ -596,17 +591,11 @@ function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () =>
           </Button>
         )}
       </div>
-      {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic">
-          Nenhum dado pôde ser extraído deste documento.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {entries.map(([k, v]) => (
-            <FieldRow key={k} label={FIELD_LABELS[k]} value={String(v)} />
-          ))}
-        </div>
-      )}
+      <div className="space-y-2">
+        {entries.map(([k, v]) => (
+          <FieldRow key={k} label={FIELD_LABELS[k]} value={v ? String(v) : "—"} />
+        ))}
+      </div>
     </Card>
   );
 }
