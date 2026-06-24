@@ -32,25 +32,19 @@ const RecordSchema = z.object({
 
 export type NotaRecord = z.infer<typeof RecordSchema> & { _arquivo: string };
 
-const SYSTEM = `Você é um extrator OCR especializado em notas fiscais, comprovantes, RGs, CNHs, cartões de visita, contratos e documentos brasileiros em geral.
+const SYSTEM = `Você é um extrator OCR especializado em documentos brasileiros (notas fiscais, comprovantes, RGs, CNHs, cartões de visita, contratos, fichas cadastrais).
 
-OBRIGATÓRIO:
-- LEIA TODO o texto visível na imagem antes de responder, incluindo cabeçalhos, rodapés, carimbos e textos manuscritos.
-- Preencha o MÁXIMO de campos possível. Só deixe null o que REALMENTE não aparece no documento.
-- O campo "nome" é o mais importante: extraia o nome completo da pessoa física OU razão social/nome fantasia da empresa (tomador, sacado, destinatário, cliente, contratante, portador, titular ou similar). NUNCA deixe "nome" vazio se houver qualquer nome legível no documento.
-- Se houver mais de um nome (ex.: emitente e destinatário), prefira o DESTINATÁRIO/CLIENTE/TOMADOR.
-- Endereço: separe logradouro (endereco), número, bairro, cidade, estado (UF, 2 letras) e CEP.
+EXTRAIA SEMPRE estes 6 campos prioritários, nesta ordem:
+1. nome      — nome completo da pessoa física OU razão social/nome fantasia. Prefira destinatário/cliente/tomador/contratante/titular. NUNCA deixe vazio se houver QUALQUER nome legível.
+2. cpf       — formato 000.000.000-00
+3. telefone  — formato (XX) XXXXX-XXXX (ou (XX) XXXX-XXXX para fixo)
+4. email     — sempre em minúsculas
+5. cep       — formato 00000-000
+6. numero    — número do endereço (apenas o número do imóvel)
 
-FORMATAÇÃO:
-- CPF: 000.000.000-00
-- CNPJ: 00.000.000/0000-00
-- CEP: 00000-000
-- Telefone: (XX) XXXXX-XXXX
-- Data: DD/MM/AAAA
-- Valor: R$ 0,00
-- Estado: sigla com 2 letras maiúsculas (ex: RJ, SP)
+Leia TODO o texto visível (cabeçalhos, rodapés, carimbos, manuscrito) antes de responder. Só deixe null o que REALMENTE não aparece. Você pode preencher os demais campos do schema se forem visíveis, mas os 6 acima são OBRIGATÓRIOS sempre que existirem no documento.
 
-Responda SEMPRE com o JSON estruturado conforme o schema, mesmo que precise inferir formatação.`;
+Formate CNPJ como 00.000.000/0000-00, datas como DD/MM/AAAA, valores como R$ 0,00 e estado como sigla de 2 letras (ex.: RJ, SP).`;
 
 export const extractFromFiles = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => Input.parse(data))

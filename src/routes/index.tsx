@@ -61,21 +61,16 @@ const ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "applica
 const ACCEPT_ATTR = ".jpg,.jpeg,.png,.webp,.pdf";
 const MAX_FILES = 10;
 
-const FIELD_LABELS: Record<keyof Omit<NotaRecord, "_arquivo">, string> = {
+// Ordem FIXA de campos extraídos e exibidos em todos os documentos
+const FIELD_ORDER = ["nome", "cpf", "telefone", "email", "cep", "numero"] as const;
+type FieldKey = (typeof FIELD_ORDER)[number];
+const FIELD_LABELS: Record<FieldKey, string> = {
   nome: "Nome",
   cpf: "CPF",
-  cnpj: "CNPJ",
-  email: "E-mail",
   telefone: "Telefone",
+  email: "E-mail",
   cep: "CEP",
-  endereco: "Endereço",
   numero: "Número",
-  bairro: "Bairro",
-  cidade: "Cidade",
-  estado: "Estado",
-  notaFiscal: "Número da Nota Fiscal",
-  data: "Data da Nota",
-  valor: "Valor Total",
 };
 
 type ExportKind = "docx" | "xlsx" | "pdf";
@@ -554,12 +549,12 @@ function NotaTool() {
 
 function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () => void }) {
   const [copiedAll, setCopiedAll] = useState(false);
-  const entries = (Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[])
-    .map((k) => [k, record[k]] as const)
-    .filter(([, v]) => v != null && v !== "");
+  const entries = FIELD_ORDER.map((k) => [k, record[k]] as const);
 
   const copyAll = async () => {
-    const text = entries.map(([k, v]) => `${FIELD_LABELS[k]}: ${v}`).join("\n");
+    const text = entries
+      .map(([k, v]) => `${FIELD_LABELS[k]}: ${v ?? ""}`)
+      .join("\n");
     await navigator.clipboard.writeText(text);
     setCopiedAll(true);
     setTimeout(() => setCopiedAll(false), 1500);
@@ -596,17 +591,11 @@ function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () =>
           </Button>
         )}
       </div>
-      {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground italic">
-          Nenhum dado pôde ser extraído deste documento.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {entries.map(([k, v]) => (
-            <FieldRow key={k} label={FIELD_LABELS[k]} value={String(v)} />
-          ))}
-        </div>
-      )}
+      <div className="space-y-2">
+        {entries.map(([k, v]) => (
+          <FieldRow key={k} label={FIELD_LABELS[k]} value={v ? String(v) : "—"} />
+        ))}
+      </div>
     </Card>
   );
 }
@@ -759,37 +748,14 @@ async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boole
     headers = ["E-mail"];
     rows = records.map((r) => ({ "E-mail": r.email || "" }));
   } else {
-    headers = [
-      "Nome",
-      "CPF",
-      "CNPJ",
-      "E-mail",
-      "Telefone",
-      "CEP",
-      "Endereço",
-      "Número",
-      "Bairro",
-      "Cidade",
-      "Estado",
-      "Nota Fiscal",
-      "Data",
-      "Valor",
-    ];
+    headers = ["Nome", "CPF", "Telefone", "E-mail", "CEP", "Número"];
     rows = records.map((r) => ({
       Nome: r.nome || "",
       CPF: r.cpf || "",
-      CNPJ: r.cnpj || "",
-      "E-mail": r.email || "",
       Telefone: r.telefone || "",
+      "E-mail": r.email || "",
       CEP: r.cep || "",
-      Endereço: r.endereco || "",
       Número: r.numero || "",
-      Bairro: r.bairro || "",
-      Cidade: r.cidade || "",
-      Estado: r.estado || "",
-      "Nota Fiscal": r.notaFiscal || "",
-      Data: r.data || "",
-      Valor: r.valor || "",
     }));
   }
   const ws = XLSX.utils.json_to_sheet(rows, { header: headers });
@@ -847,27 +813,14 @@ async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolea
     });
   } else {
     autoTable(doc, {
-      head: [[
-        "Nome",
-        "CPF/CNPJ",
-        "E-mail",
-        "Telefone",
-        "Endereço",
-        "Cidade/UF",
-        "Nota",
-        "Data",
-        "Valor",
-      ]],
+      head: [["Nome", "CPF", "Telefone", "E-mail", "CEP", "Número"]],
       body: records.map((r) => [
         r.nome || "",
-        r.cpf || r.cnpj || "",
-        r.email || "",
+        r.cpf || "",
         r.telefone || "",
-        [r.endereco, r.numero, r.bairro].filter(Boolean).join(", "),
-        [r.cidade, r.estado].filter(Boolean).join("/"),
-        r.notaFiscal || "",
-        r.data || "",
-        r.valor || "",
+        r.email || "",
+        r.cep || "",
+        r.numero || "",
       ]),
       startY: 38,
       headStyles: { fillColor: [20, 120, 150] },
@@ -920,18 +873,16 @@ async function exportDocx(name: string, records: NotaRecord[], emailsOnly: boole
           children: [new TextRun({ text: `Registro ${i + 1}`, bold: true })],
         }),
       );
-      (Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[]).forEach((k) => {
+      FIELD_ORDER.forEach((k) => {
         const v = r[k];
-        if (v) {
-          children.push(
+        children.push(
             new Paragraph({
               children: [
                 new TextRun({ text: `${FIELD_LABELS[k]}: `, bold: true }),
-                new TextRun({ text: String(v) }),
+                new TextRun({ text: v ? String(v) : "" }),
               ],
             }),
           );
-        }
       });
       children.push(new Paragraph({ text: "" }));
     });
