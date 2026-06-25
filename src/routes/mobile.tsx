@@ -16,6 +16,11 @@ import {
   ArrowLeft,
   Zap,
   ZapOff,
+  ShieldAlert,
+  Settings,
+  RefreshCw,
+  Smartphone,
+  Share,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -67,6 +72,19 @@ function MobileScanner() {
   const [status, setStatus] = useState("Aponte para um documento");
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  const [permissionState, setPermissionState] = useState<
+    "idle" | "requesting" | "denied" | "unavailable" | "granted"
+  >("idle");
+  const [permissionError, setPermissionError] = useState<string>("");
+
+  // PWA install
+  const [installPrompt, setInstallPrompt] = useState<{
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: string }>;
+  } | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+  const [showIosHelp, setShowIosHelp] = useState(false);
 
   const extract = useServerFn(extractFromFiles);
 
@@ -76,7 +94,53 @@ function MobileScanner() {
       const saved = localStorage.getItem("nota.records");
       if (saved) setRecords(JSON.parse(saved));
     } catch {}
+    // iOS detection
+    const ua = navigator.userAgent || "";
+    const iOS = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
+    setIsIos(iOS);
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setInstalled(standalone);
   }, []);
+
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(
+        e as unknown as {
+          prompt: () => Promise<void>;
+          userChoice: Promise<{ outcome: string }>;
+        },
+      );
+    };
+    const onInstalled = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      try {
+        await installPrompt.userChoice;
+      } catch {}
+      setInstallPrompt(null);
+      return;
+    }
+    if (isIos) {
+      setShowIosHelp(true);
+      return;
+    }
+    toast.info("Use o menu do navegador → Instalar aplicativo");
+  };
 
   useEffect(() => {
     if (!mounted) return;
@@ -86,6 +150,22 @@ function MobileScanner() {
   }, [records, mounted]);
 
   const startCamera = async () => {
+    setPermissionError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPermissionState("unavailable");
+      setPermissionError(
+        "Este navegador não permite acesso à câmera. Use Chrome ou Safari atualizado.",
+      );
+      return;
+    }
+    if (!window.isSecureContext) {
+      setPermissionState("unavailable");
+      setPermissionError(
+        "A câmera só funciona em conexões seguras (HTTPS). Abra a versão publicada do app.",
+      );
+      return;
+    }
+    setPermissionState("requesting");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -104,10 +184,35 @@ function MobileScanner() {
       const caps = (track?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean };
       setTorchSupported(!!caps.torch);
       setStreaming(true);
+      setPermissionState("granted");
       setStatus("Aponte para um documento e segure firme");
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      toast.error("Não foi possível abrir a câmera. Verifique permissões.");
+      const err = e as { name?: string; message?: string };
+      const name = err?.name || "";
+      if (
+        name === "NotAllowedError" ||
+        name === "SecurityError" ||
+        name === "PermissionDeniedError"
+      ) {
+        setPermissionState("denied");
+        setPermissionError(
+          "Você bloqueou o acesso à câmera. Permita o uso nas configurações do navegador e tente novamente.",
+        );
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        setPermissionState("unavailable");
+        setPermissionError("Nenhuma câmera foi encontrada neste dispositivo.");
+      } else if (name === "NotReadableError") {
+        setPermissionState("unavailable");
+        setPermissionError(
+          "A câmera está em uso por outro aplicativo. Feche-o e tente de novo.",
+        );
+      } else {
+        setPermissionState("denied");
+        setPermissionError(
+          err?.message || "Não foi possível abrir a câmera. Tente novamente.",
+        );
+      }
     }
   };
 
@@ -431,12 +536,71 @@ function MobileScanner() {
           )}
 
           {!streaming && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80 text-sm p-6 text-center">
-              <Camera className="w-12 h-12 opacity-70" />
-              <p>Toque em iniciar para abrir a câmera</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/85 text-sm p-6 text-center">
+              {permissionState === "denied" || permissionState === "unavailable" ? (
+                <PermissionHelp
+                  state={permissionState}
+                  message={permissionError}
+                  onRetry={startCamera}
+                />
+              ) : permissionState === "requesting" ? (
+                <>
+                  <Loader2 className="w-10 h-10 animate-spin opacity-80" />
+                  <p>Solicitando acesso à câmera...</p>
+                  <p className="text-xs text-white/60">
+                    Toque em "Permitir" no aviso do navegador.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-12 h-12 opacity-70" />
+                  <p>Toque em iniciar para abrir a câmera</p>
+                </>
+              )}
             </div>
           )}
         </Card>
+
+        {!installed && (
+          <Card className="p-3 flex items-center gap-3 border-primary/30 bg-primary/5">
+            <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">Instalar o app NOTA</div>
+              <p className="text-xs text-muted-foreground">
+                Adicione à tela inicial para abrir como um aplicativo.
+              </p>
+            </div>
+            <Button size="sm" onClick={handleInstall}>
+              {isIos ? (
+                <>
+                  <Share className="w-4 h-4 mr-1" /> Como?
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-4 h-4 mr-1" /> Instalar
+                </>
+              )}
+            </Button>
+          </Card>
+        )}
+
+        {showIosHelp && (
+          <Card className="p-4 space-y-2 text-sm">
+            <div className="font-semibold flex items-center gap-2">
+              <Share className="w-4 h-4" /> Instalar no iPhone / iPad
+            </div>
+            <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+              <li>Toque no botão Compartilhar do Safari.</li>
+              <li>Escolha "Adicionar à Tela de Início".</li>
+              <li>Confirme em "Adicionar". O NOTA aparecerá como app.</li>
+            </ol>
+            <Button size="sm" variant="ghost" onClick={() => setShowIosHelp(false)}>
+              Fechar
+            </Button>
+          </Card>
+        )}
 
         <div className="flex items-center gap-3">
           {!streaming ? (
@@ -585,6 +749,62 @@ function FieldLine({ label, value }: { label: string; value: string | null }) {
         )}
       </dd>
     </>
+  );
+}
+
+function PermissionHelp({
+  state,
+  message,
+  onRetry,
+}: {
+  state: "denied" | "unavailable";
+  message: string;
+  onRetry: () => void;
+}) {
+  const denied = state === "denied";
+  return (
+    <div className="flex flex-col items-center gap-3 max-w-sm">
+      <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
+        <ShieldAlert className="w-7 h-7 text-amber-300" />
+      </div>
+      <div className="font-semibold text-white text-base">
+        {denied ? "Acesso à câmera bloqueado" : "Câmera indisponível"}
+      </div>
+      <p className="text-xs text-white/75 leading-relaxed">
+        {message ||
+          "Não foi possível acessar a câmera deste dispositivo."}
+      </p>
+      {denied && (
+        <div className="text-left text-xs text-white/70 bg-white/5 rounded-md p-3 w-full space-y-1.5">
+          <div className="font-medium text-white/90 flex items-center gap-1.5">
+            <Settings className="w-3.5 h-3.5" /> Como liberar:
+          </div>
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>Toque no ícone de cadeado na barra de endereço.</li>
+            <li>
+              Em <span className="font-medium">Permissões</span>, ative a{" "}
+              <span className="font-medium">Câmera</span>.
+            </li>
+            <li>Recarregue a página e toque em "Tentar novamente".</li>
+          </ol>
+        </div>
+      )}
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" onClick={onRetry}>
+          <RefreshCw className="w-4 h-4 mr-1.5" /> Tentar novamente
+        </Button>
+        {denied && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-white/10 text-white border-white/20 hover:bg-white/20"
+            onClick={() => window.location.reload()}
+          >
+            Recarregar
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
