@@ -536,12 +536,71 @@ function MobileScanner() {
           )}
 
           {!streaming && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80 text-sm p-6 text-center">
-              <Camera className="w-12 h-12 opacity-70" />
-              <p>Toque em iniciar para abrir a câmera</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/85 text-sm p-6 text-center">
+              {permissionState === "denied" || permissionState === "unavailable" ? (
+                <PermissionHelp
+                  state={permissionState}
+                  message={permissionError}
+                  onRetry={startCamera}
+                />
+              ) : permissionState === "requesting" ? (
+                <>
+                  <Loader2 className="w-10 h-10 animate-spin opacity-80" />
+                  <p>Solicitando acesso à câmera...</p>
+                  <p className="text-xs text-white/60">
+                    Toque em "Permitir" no aviso do navegador.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-12 h-12 opacity-70" />
+                  <p>Toque em iniciar para abrir a câmera</p>
+                </>
+              )}
             </div>
           )}
         </Card>
+
+        {!installed && (
+          <Card className="p-3 flex items-center gap-3 border-primary/30 bg-primary/5">
+            <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">Instalar o app NOTA</div>
+              <p className="text-xs text-muted-foreground">
+                Adicione à tela inicial para abrir como um aplicativo.
+              </p>
+            </div>
+            <Button size="sm" onClick={handleInstall}>
+              {isIos ? (
+                <>
+                  <Share className="w-4 h-4 mr-1" /> Como?
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-4 h-4 mr-1" /> Instalar
+                </>
+              )}
+            </Button>
+          </Card>
+        )}
+
+        {showIosHelp && (
+          <Card className="p-4 space-y-2 text-sm">
+            <div className="font-semibold flex items-center gap-2">
+              <Share className="w-4 h-4" /> Instalar no iPhone / iPad
+            </div>
+            <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+              <li>Toque no botão Compartilhar do Safari.</li>
+              <li>Escolha "Adicionar à Tela de Início".</li>
+              <li>Confirme em "Adicionar". O NOTA aparecerá como app.</li>
+            </ol>
+            <Button size="sm" variant="ghost" onClick={() => setShowIosHelp(false)}>
+              Fechar
+            </Button>
+          </Card>
+        )}
 
         <div className="flex items-center gap-3">
           {!streaming ? (
