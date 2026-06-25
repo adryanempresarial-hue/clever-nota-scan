@@ -16,6 +16,12 @@ import {
   ArrowLeft,
   Zap,
   ZapOff,
+  ShieldAlert,
+  Settings,
+  RefreshCw,
+  Smartphone,
+  Share,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -67,6 +73,19 @@ function MobileScanner() {
   const [status, setStatus] = useState("Aponte para um documento");
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  const [permissionState, setPermissionState] = useState<
+    "idle" | "requesting" | "denied" | "unavailable" | "granted"
+  >("idle");
+  const [permissionError, setPermissionError] = useState<string>("");
+
+  // PWA install
+  const [installPrompt, setInstallPrompt] = useState<{
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: string }>;
+  } | null>(null);
+  const [installed, setInstalled] = useState(false);
+  const [isIos, setIsIos] = useState(false);
+  const [showIosHelp, setShowIosHelp] = useState(false);
 
   const extract = useServerFn(extractFromFiles);
 
@@ -76,7 +95,53 @@ function MobileScanner() {
       const saved = localStorage.getItem("nota.records");
       if (saved) setRecords(JSON.parse(saved));
     } catch {}
+    // iOS detection
+    const ua = navigator.userAgent || "";
+    const iOS = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
+    setIsIos(iOS);
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    setInstalled(standalone);
   }, []);
+
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(
+        e as unknown as {
+          prompt: () => Promise<void>;
+          userChoice: Promise<{ outcome: string }>;
+        },
+      );
+    };
+    const onInstalled = () => {
+      setInstalled(true);
+      setInstallPrompt(null);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      try {
+        await installPrompt.userChoice;
+      } catch {}
+      setInstallPrompt(null);
+      return;
+    }
+    if (isIos) {
+      setShowIosHelp(true);
+      return;
+    }
+    toast.info("Use o menu do navegador → Instalar aplicativo");
+  };
 
   useEffect(() => {
     if (!mounted) return;
@@ -86,6 +151,22 @@ function MobileScanner() {
   }, [records, mounted]);
 
   const startCamera = async () => {
+    setPermissionError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setPermissionState("unavailable");
+      setPermissionError(
+        "Este navegador não permite acesso à câmera. Use Chrome ou Safari atualizado.",
+      );
+      return;
+    }
+    if (!window.isSecureContext) {
+      setPermissionState("unavailable");
+      setPermissionError(
+        "A câmera só funciona em conexões seguras (HTTPS). Abra a versão publicada do app.",
+      );
+      return;
+    }
+    setPermissionState("requesting");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -104,10 +185,35 @@ function MobileScanner() {
       const caps = (track?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean };
       setTorchSupported(!!caps.torch);
       setStreaming(true);
+      setPermissionState("granted");
       setStatus("Aponte para um documento e segure firme");
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      toast.error("Não foi possível abrir a câmera. Verifique permissões.");
+      const err = e as { name?: string; message?: string };
+      const name = err?.name || "";
+      if (
+        name === "NotAllowedError" ||
+        name === "SecurityError" ||
+        name === "PermissionDeniedError"
+      ) {
+        setPermissionState("denied");
+        setPermissionError(
+          "Você bloqueou o acesso à câmera. Permita o uso nas configurações do navegador e tente novamente.",
+        );
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        setPermissionState("unavailable");
+        setPermissionError("Nenhuma câmera foi encontrada neste dispositivo.");
+      } else if (name === "NotReadableError") {
+        setPermissionState("unavailable");
+        setPermissionError(
+          "A câmera está em uso por outro aplicativo. Feche-o e tente de novo.",
+        );
+      } else {
+        setPermissionState("denied");
+        setPermissionError(
+          err?.message || "Não foi possível abrir a câmera. Tente novamente.",
+        );
+      }
     }
   };
 
