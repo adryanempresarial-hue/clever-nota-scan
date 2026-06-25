@@ -752,6 +752,62 @@ function FieldLine({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+function PermissionHelp({
+  state,
+  message,
+  onRetry,
+}: {
+  state: "denied" | "unavailable";
+  message: string;
+  onRetry: () => void;
+}) {
+  const denied = state === "denied";
+  return (
+    <div className="flex flex-col items-center gap-3 max-w-sm">
+      <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
+        <ShieldAlert className="w-7 h-7 text-amber-300" />
+      </div>
+      <div className="font-semibold text-white text-base">
+        {denied ? "Acesso à câmera bloqueado" : "Câmera indisponível"}
+      </div>
+      <p className="text-xs text-white/75 leading-relaxed">
+        {message ||
+          "Não foi possível acessar a câmera deste dispositivo."}
+      </p>
+      {denied && (
+        <div className="text-left text-xs text-white/70 bg-white/5 rounded-md p-3 w-full space-y-1.5">
+          <div className="font-medium text-white/90 flex items-center gap-1.5">
+            <Settings className="w-3.5 h-3.5" /> Como liberar:
+          </div>
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>Toque no ícone de cadeado na barra de endereço.</li>
+            <li>
+              Em <span className="font-medium">Permissões</span>, ative a{" "}
+              <span className="font-medium">Câmera</span>.
+            </li>
+            <li>Recarregue a página e toque em "Tentar novamente".</li>
+          </ol>
+        </div>
+      )}
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" onClick={onRetry}>
+          <RefreshCw className="w-4 h-4 mr-1.5" /> Tentar novamente
+        </Button>
+        {denied && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="bg-white/10 text-white border-white/20 hover:bg-white/20"
+            onClick={() => window.location.reload()}
+          >
+            Recarregar
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
