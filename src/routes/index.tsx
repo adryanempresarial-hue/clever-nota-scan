@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -18,6 +19,7 @@ import {
   X,
   Pencil,
   Check,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -266,9 +268,19 @@ function NotaTool() {
               <div className="text-xs text-muted-foreground">Extração inteligente com IA + OCR</div>
             </div>
           </div>
-          <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-medium hidden sm:inline">
-            Plano Empresarial
-          </span>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/mobile"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
+              title="Abrir scanner mobile"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Scanner Mobile</span>
+            </Link>
+            <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-medium hidden sm:inline">
+              Plano Empresarial
+            </span>
+          </div>
         </div>
       </header>
 
