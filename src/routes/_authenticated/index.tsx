@@ -245,6 +245,19 @@ function NotaTool() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {syncing ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sincronizando…
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1.5 text-xs text-primary"
+                title="Dados sincronizados na nuvem"
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sincronizado</span>
+              </span>
+            )}
             <Link
               to="/mobile"
               className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
@@ -256,6 +269,9 @@ function NotaTool() {
             <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-medium hidden sm:inline">
               Plano Empresarial
             </span>
+            <Button variant="ghost" size="sm" onClick={handleSignOut} title="Sair">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </header>
@@ -269,11 +285,11 @@ function NotaTool() {
             </TabsTrigger>
             <TabsTrigger value="salvos">
               <FileImage className="w-4 h-4 mr-2" />
-              Salvos{mounted ? ` (${records.length})` : ""}
+              Salvos{loadingCloud ? "" : ` (${records.length})`}
             </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
-              Arquivos Gerados{mounted ? ` (${history.length})` : ""}
+              Arquivos Gerados{loadingCloud ? "" : ` (${cloudFiles.length})`}
             </TabsTrigger>
           </TabsList>
 
