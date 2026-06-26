@@ -29,8 +29,9 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
+import { useCloudRecords, useCloudFiles } from "@/lib/nota-sync";
 
-export const Route = createFileRoute("/mobile")({
+export const Route = createFileRoute("/_authenticated/mobile")({
   head: () => ({
     meta: [
       { title: "NOTA Mobile · Scanner ao vivo" },
@@ -67,8 +68,15 @@ function MobileScanner() {
   const [streaming, setStreaming] = useState(false);
   const [autoScan, setAutoScan] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [records, setRecords] = useState<NotaRecord[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const {
+    records,
+    syncing: syncingRecords,
+    addOne,
+    removeOne,
+    clearAll,
+  } = useCloudRecords();
+  const { saveFile, syncing: syncingFiles } = useCloudFiles();
+  const syncing = syncingRecords || syncingFiles;
   const [status, setStatus] = useState("Aponte para um documento");
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
@@ -89,11 +97,6 @@ function MobileScanner() {
   const extract = useServerFn(extractFromFiles);
 
   useEffect(() => {
-    setMounted(true);
-    try {
-      const saved = localStorage.getItem("nota.records");
-      if (saved) setRecords(JSON.parse(saved));
-    } catch {}
     // iOS detection
     const ua = navigator.userAgent || "";
     const iOS = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
@@ -141,13 +144,6 @@ function MobileScanner() {
     }
     toast.info("Use o menu do navegador → Instalar aplicativo");
   };
-
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem("nota.records", JSON.stringify(records));
-    } catch {}
-  }, [records, mounted]);
 
   const startCamera = async () => {
     setPermissionError("");
@@ -339,7 +335,7 @@ function MobileScanner() {
         setStatus("Já capturado, aponte para outro documento");
         return;
       }
-      setRecords((prev) => [rec, ...prev]);
+      await addOne(rec);
       setStatus(`✓ ${rec.nome ?? "Documento"} capturado`);
       toast.success(`Capturado: ${rec.nome ?? "documento"}`);
       // Force a cooldown after a save
@@ -413,7 +409,9 @@ function MobileScanner() {
     const blob = new Blob([buf], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-    download(blob, `mobile_${Date.now()}.xlsx`);
+    const name = `mobile_${Date.now()}.xlsx`;
+    download(blob, name);
+    saveFile(blob, name, "xlsx", records.length).catch(() => {});
   };
 
   const exportPdf = async () => {
@@ -436,7 +434,10 @@ function MobileScanner() {
       startY: 20,
       styles: { fontSize: 8 },
     });
-    download(doc.output("blob"), `mobile_${Date.now()}.pdf`);
+    const blob = doc.output("blob");
+    const name = `mobile_${Date.now()}.pdf`;
+    download(blob, name);
+    saveFile(blob, name, "pdf", records.length).catch(() => {});
   };
 
   const exportDocx = async () => {
@@ -469,7 +470,9 @@ function MobileScanner() {
     });
     const docx = new Document({ sections: [{ children }] });
     const blob = await Packer.toBlob(docx);
-    download(blob, `mobile_${Date.now()}.docx`);
+    const name = `mobile_${Date.now()}.docx`;
+    download(blob, name);
+    saveFile(blob, name, "docx", records.length).catch(() => {});
   };
 
   return (
@@ -486,9 +489,20 @@ function MobileScanner() {
           <div className="flex items-center gap-2 font-semibold">
             NOTA <Sparkles className="w-4 h-4 text-primary" />
           </div>
-          <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-            Mobile
-          </span>
+          <div className="flex items-center gap-2">
+            {syncing ? (
+              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" /> sync
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] text-primary">
+                ☁ sync
+              </span>
+            )}
+            <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
+              Mobile
+            </span>
+          </div>
         </div>
       </header>
 
@@ -636,7 +650,7 @@ function MobileScanner() {
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold">
-              Capturados {mounted ? `(${records.length})` : ""}
+              Capturados ({records.length})
             </h2>
             {records.length > 0 && (
               <Button
@@ -644,7 +658,7 @@ function MobileScanner() {
                 variant="ghost"
                 onClick={() => {
                   if (confirm("Limpar todos os registros?")) {
-                    setRecords([]);
+                    clearAll();
                   }
                 }}
               >
@@ -668,11 +682,11 @@ function MobileScanner() {
           )}
 
           <div className="space-y-3">
-            {records.map((r, idx) => (
+            {records.map((r) => (
               <MobileRecord
-                key={idx}
+                key={r._id ?? r._arquivo}
                 record={r}
-                onDelete={() => setRecords((prev) => prev.filter((_, i) => i !== idx))}
+                onDelete={() => removeOne(r._id)}
               />
             ))}
             {records.length === 0 && (

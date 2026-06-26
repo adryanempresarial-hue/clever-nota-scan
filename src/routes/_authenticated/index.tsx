@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -20,6 +20,8 @@ import {
   Pencil,
   Check,
   Smartphone,
+  LogOut,
+  Cloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,8 +41,9 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
+import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
       { title: "NOTA · D4S — Extração inteligente de notas fiscais" },
@@ -76,7 +79,6 @@ const FIELD_LABELS: Record<FieldKey, string> = {
 };
 
 type ExportKind = "docx" | "xlsx" | "pdf";
-type HistoryItem = { id: string; name: string; kind: ExportKind; date: string; count: number };
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -90,21 +92,9 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function loadHistory(): HistoryItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem("nota.history") || "[]");
-  } catch {
-    return [];
-  }
-}
-function saveHistory(items: HistoryItem[]) {
-  localStorage.setItem("nota.history", JSON.stringify(items));
-}
-
-function nextVersionedName(base: string, ext: ExportKind, history: HistoryItem[]) {
+function nextVersionedName(base: string, ext: ExportKind, existing: { name: string; kind: ExportKind }[]) {
   const prefix = `${base}_`;
-  const used = history
+  const used = existing
     .filter((h) => h.kind === ext && h.name.startsWith(prefix))
     .map((h) => {
       const m = h.name.match(/_(\d{3})\./);
@@ -115,12 +105,28 @@ function nextVersionedName(base: string, ext: ExportKind, history: HistoryItem[]
 }
 
 function NotaTool() {
+  const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [records, setRecords] = useState<NotaRecord[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const {
+    records,
+    loading: loadingRecords,
+    syncing: syncingRecords,
+    addMany,
+    removeOne,
+    clearAll,
+  } = useCloudRecords();
+  const {
+    files: cloudFiles,
+    loading: loadingFiles,
+    syncing: syncingFiles,
+    saveFile,
+    downloadFile,
+    removeFile,
+  } = useCloudFiles();
+  const syncing = syncingRecords || syncingFiles;
+  const loadingCloud = loadingRecords || loadingFiles;
   const [exportDialog, setExportDialog] = useState<{
     kind: ExportKind;
     emailsOnly: boolean;
@@ -128,22 +134,6 @@ function NotaTool() {
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
   const inputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
-
-  useEffect(() => {
-    setMounted(true);
-    setHistory(loadHistory());
-    try {
-      const saved = localStorage.getItem("nota.records");
-      if (saved) setRecords(JSON.parse(saved));
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem("nota.records", JSON.stringify(records));
-    } catch {}
-  }, [records, mounted]);
 
   const addFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
@@ -178,7 +168,7 @@ function NotaTool() {
       );
       const res = await extract({ data: { files: payload } });
       console.log("[NOTA] SAVED_DATA", res.records);
-      setRecords(res.records);
+      await addMany(res.records);
       setProgress(100);
       toast.success(`${res.records.length} documento(s) processado(s)`);
     } catch (e: unknown) {
@@ -213,25 +203,18 @@ function NotaTool() {
       return;
     }
     const base = emailsOnly ? "emails" : "clientes";
-    const name = nextVersionedName(base, kind, history);
+    const name = nextVersionedName(base, kind, cloudFiles);
     try {
       const data = emailsOnly
         ? allEmails.map((e) => ({ _arquivo: "", email: e }) as NotaRecord)
         : records;
       console.log(`[NOTA] EXPORT_${kind.toUpperCase()}_DATA`, data);
-      if (kind === "xlsx") await exportXlsx(name, data, emailsOnly);
-      else if (kind === "pdf") await exportPdf(name, data, emailsOnly);
-      else await exportDocx(name, data, emailsOnly);
-      const item: HistoryItem = {
-        id: crypto.randomUUID(),
-        name,
-        kind,
-        date: new Date().toISOString(),
-        count: data.length,
-      };
-      const next = [item, ...history].slice(0, 50);
-      setHistory(next);
-      saveHistory(next);
+      let blob: Blob;
+      if (kind === "xlsx") blob = await buildXlsx(data, emailsOnly);
+      else if (kind === "pdf") blob = await buildPdf(data, emailsOnly);
+      else blob = await buildDocx(data, emailsOnly);
+      downloadBlob(blob, name);
+      await saveFile(blob, name, kind, data.length);
       toast.success(`Arquivo gerado: ${name}`);
       setExportDialog(null);
     } catch (e) {
@@ -240,16 +223,9 @@ function NotaTool() {
     }
   };
 
-  const reExport = async (h: HistoryItem) => {
-    // Re-gera arquivo com os mesmos dados atuais (best-effort, sem persistir blobs)
-    if (records.length === 0) {
-      toast.error("Processe documentos novamente para baixar uma nova versão");
-      return;
-    }
-    const data = records;
-    if (h.kind === "xlsx") await exportXlsx(h.name, data, false);
-    else if (h.kind === "pdf") await exportPdf(h.name, data, false);
-    else await exportDocx(h.name, data, false);
+  const handleSignOut = async () => {
+    await signOut();
+    navigate({ to: "/auth" });
   };
 
   return (
@@ -269,6 +245,19 @@ function NotaTool() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {syncing ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sincronizando…
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1.5 text-xs text-primary"
+                title="Dados sincronizados na nuvem"
+              >
+                <Cloud className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sincronizado</span>
+              </span>
+            )}
             <Link
               to="/mobile"
               className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
@@ -280,6 +269,9 @@ function NotaTool() {
             <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-medium hidden sm:inline">
               Plano Empresarial
             </span>
+            <Button variant="ghost" size="sm" onClick={handleSignOut} title="Sair">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </header>
@@ -293,11 +285,11 @@ function NotaTool() {
             </TabsTrigger>
             <TabsTrigger value="salvos">
               <FileImage className="w-4 h-4 mr-2" />
-              Salvos{mounted ? ` (${records.length})` : ""}
+              Salvos{loadingCloud ? "" : ` (${records.length})`}
             </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
-              Arquivos Gerados{mounted ? ` (${history.length})` : ""}
+              Arquivos Gerados{loadingCloud ? "" : ` (${cloudFiles.length})`}
             </TabsTrigger>
           </TabsList>
 
@@ -454,8 +446,7 @@ function NotaTool() {
                       size="sm"
                       onClick={() => {
                         if (confirm("Remover todos os registros salvos?")) {
-                          setRecords([]);
-                          toast.success("Registros removidos");
+                          clearAll().then(() => toast.success("Registros removidos"));
                         }
                       }}
                     >
@@ -464,13 +455,11 @@ function NotaTool() {
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  {records.map((r, idx) => (
+                  {records.map((r) => (
                     <RecordCard
-                      key={idx}
+                      key={r._id ?? r._arquivo}
                       record={r}
-                      onDelete={() =>
-                        setRecords((prev) => prev.filter((_, i) => i !== idx))
-                      }
+                      onDelete={() => removeOne(r._id)}
                     />
                   ))}
                 </div>
@@ -479,36 +468,38 @@ function NotaTool() {
           </TabsContent>
 
           <TabsContent value="historico">
-            {history.length === 0 ? (
+            {cloudFiles.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
                 <History className="w-10 h-10 mx-auto mb-3 opacity-50" />
                 Nenhum arquivo gerado ainda.
               </Card>
             ) : (
               <Card className="divide-y">
-                {history.map((h) => (
+                {cloudFiles.map((f: CloudFile) => (
                   <div
-                    key={h.id}
+                    key={f.id}
                     className="p-4 flex items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{h.name}</div>
+                      <div className="font-medium truncate">{f.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {new Date(h.date).toLocaleString("pt-BR")} · {h.count} registro(s)
+                        {new Date(f.created_at).toLocaleString("pt-BR")} · {f.count} registro(s)
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => reExport(h)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          downloadFile(f).catch(() => toast.error("Falha ao baixar"))
+                        }
+                      >
                         <Download className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          const next = history.filter((x) => x.id !== h.id);
-                          setHistory(next);
-                          saveHistory(next);
-                        }}
+                        onClick={() => removeFile(f)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -752,7 +743,7 @@ function downloadBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boolean) {
+async function buildXlsx(records: NotaRecord[], emailsOnly: boolean): Promise<Blob> {
   const XLSX = await import("xlsx");
   let rows: Record<string, string>[];
   let headers: string[];
@@ -788,15 +779,12 @@ async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boole
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Dados");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-  downloadBlob(
-    new Blob([buf], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }),
-    name,
-  );
+  return new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 }
 
-async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolean) {
+async function buildPdf(records: NotaRecord[], emailsOnly: boolean): Promise<Blob> {
   const { default: jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF({ orientation: emailsOnly ? "p" : "l" });
@@ -849,10 +837,10 @@ async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolea
       },
     });
   }
-  downloadBlob(doc.output("blob"), name);
+  return doc.output("blob");
 }
 
-async function exportDocx(name: string, records: NotaRecord[], emailsOnly: boolean) {
+async function buildDocx(records: NotaRecord[], emailsOnly: boolean): Promise<Blob> {
   const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import("docx");
   const children: InstanceType<typeof Paragraph>[] = [
     new Paragraph({
@@ -901,6 +889,5 @@ async function exportDocx(name: string, records: NotaRecord[], emailsOnly: boole
   }
 
   const doc = new Document({ sections: [{ children }] });
-  const blob = await Packer.toBlob(doc);
-  downloadBlob(blob, name);
+  return Packer.toBlob(doc);
 }
