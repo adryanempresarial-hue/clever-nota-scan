@@ -68,8 +68,15 @@ function MobileScanner() {
   const [streaming, setStreaming] = useState(false);
   const [autoScan, setAutoScan] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [records, setRecords] = useState<NotaRecord[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const {
+    records,
+    syncing: syncingRecords,
+    addOne,
+    removeOne,
+    clearAll,
+  } = useCloudRecords();
+  const { saveFile, syncing: syncingFiles } = useCloudFiles();
+  const syncing = syncingRecords || syncingFiles;
   const [status, setStatus] = useState("Aponte para um documento");
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
@@ -90,11 +97,6 @@ function MobileScanner() {
   const extract = useServerFn(extractFromFiles);
 
   useEffect(() => {
-    setMounted(true);
-    try {
-      const saved = localStorage.getItem("nota.records");
-      if (saved) setRecords(JSON.parse(saved));
-    } catch {}
     // iOS detection
     const ua = navigator.userAgent || "";
     const iOS = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
@@ -142,13 +144,6 @@ function MobileScanner() {
     }
     toast.info("Use o menu do navegador → Instalar aplicativo");
   };
-
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem("nota.records", JSON.stringify(records));
-    } catch {}
-  }, [records, mounted]);
 
   const startCamera = async () => {
     setPermissionError("");
