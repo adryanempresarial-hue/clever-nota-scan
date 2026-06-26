@@ -446,8 +446,7 @@ function NotaTool() {
                       size="sm"
                       onClick={() => {
                         if (confirm("Remover todos os registros salvos?")) {
-                          setRecords([]);
-                          toast.success("Registros removidos");
+                          clearAll().then(() => toast.success("Registros removidos"));
                         }
                       }}
                     >
@@ -456,13 +455,11 @@ function NotaTool() {
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  {records.map((r, idx) => (
+                  {records.map((r) => (
                     <RecordCard
-                      key={idx}
+                      key={r._id ?? r._arquivo}
                       record={r}
-                      onDelete={() =>
-                        setRecords((prev) => prev.filter((_, i) => i !== idx))
-                      }
+                      onDelete={() => removeOne(r._id)}
                     />
                   ))}
                 </div>
@@ -471,36 +468,38 @@ function NotaTool() {
           </TabsContent>
 
           <TabsContent value="historico">
-            {history.length === 0 ? (
+            {cloudFiles.length === 0 ? (
               <Card className="p-12 text-center text-muted-foreground">
                 <History className="w-10 h-10 mx-auto mb-3 opacity-50" />
                 Nenhum arquivo gerado ainda.
               </Card>
             ) : (
               <Card className="divide-y">
-                {history.map((h) => (
+                {cloudFiles.map((f: CloudFile) => (
                   <div
-                    key={h.id}
+                    key={f.id}
                     className="p-4 flex items-center justify-between gap-3"
                   >
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{h.name}</div>
+                      <div className="font-medium truncate">{f.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {new Date(h.date).toLocaleString("pt-BR")} · {h.count} registro(s)
+                        {new Date(f.created_at).toLocaleString("pt-BR")} · {f.count} registro(s)
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => reExport(h)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          downloadFile(f).catch(() => toast.error("Falha ao baixar"))
+                        }
+                      >
                         <Download className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => {
-                          const next = history.filter((x) => x.id !== h.id);
-                          setHistory(next);
-                          saveHistory(next);
-                        }}
+                        onClick={() => removeFile(f)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
