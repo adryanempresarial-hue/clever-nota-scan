@@ -105,12 +105,28 @@ function nextVersionedName(base: string, ext: ExportKind, existing: { name: stri
 }
 
 function NotaTool() {
+  const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [records, setRecords] = useState<NotaRecord[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const {
+    records,
+    loading: loadingRecords,
+    syncing: syncingRecords,
+    addMany,
+    removeOne,
+    clearAll,
+  } = useCloudRecords();
+  const {
+    files: cloudFiles,
+    loading: loadingFiles,
+    syncing: syncingFiles,
+    saveFile,
+    downloadFile,
+    removeFile,
+  } = useCloudFiles();
+  const syncing = syncingRecords || syncingFiles;
+  const loadingCloud = loadingRecords || loadingFiles;
   const [exportDialog, setExportDialog] = useState<{
     kind: ExportKind;
     emailsOnly: boolean;
@@ -118,22 +134,6 @@ function NotaTool() {
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
   const inputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
-
-  useEffect(() => {
-    setMounted(true);
-    setHistory(loadHistory());
-    try {
-      const saved = localStorage.getItem("nota.records");
-      if (saved) setRecords(JSON.parse(saved));
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem("nota.records", JSON.stringify(records));
-    } catch {}
-  }, [records, mounted]);
 
   const addFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
@@ -168,7 +168,7 @@ function NotaTool() {
       );
       const res = await extract({ data: { files: payload } });
       console.log("[NOTA] SAVED_DATA", res.records);
-      setRecords(res.records);
+      await addMany(res.records);
       setProgress(100);
       toast.success(`${res.records.length} documento(s) processado(s)`);
     } catch (e: unknown) {
@@ -203,25 +203,18 @@ function NotaTool() {
       return;
     }
     const base = emailsOnly ? "emails" : "clientes";
-    const name = nextVersionedName(base, kind, history);
+    const name = nextVersionedName(base, kind, cloudFiles);
     try {
       const data = emailsOnly
         ? allEmails.map((e) => ({ _arquivo: "", email: e }) as NotaRecord)
         : records;
       console.log(`[NOTA] EXPORT_${kind.toUpperCase()}_DATA`, data);
-      if (kind === "xlsx") await exportXlsx(name, data, emailsOnly);
-      else if (kind === "pdf") await exportPdf(name, data, emailsOnly);
-      else await exportDocx(name, data, emailsOnly);
-      const item: HistoryItem = {
-        id: crypto.randomUUID(),
-        name,
-        kind,
-        date: new Date().toISOString(),
-        count: data.length,
-      };
-      const next = [item, ...history].slice(0, 50);
-      setHistory(next);
-      saveHistory(next);
+      let blob: Blob;
+      if (kind === "xlsx") blob = await buildXlsx(data, emailsOnly);
+      else if (kind === "pdf") blob = await buildPdf(data, emailsOnly);
+      else blob = await buildDocx(data, emailsOnly);
+      downloadBlob(blob, name);
+      await saveFile(blob, name, kind, data.length);
       toast.success(`Arquivo gerado: ${name}`);
       setExportDialog(null);
     } catch (e) {
@@ -230,16 +223,9 @@ function NotaTool() {
     }
   };
 
-  const reExport = async (h: HistoryItem) => {
-    // Re-gera arquivo com os mesmos dados atuais (best-effort, sem persistir blobs)
-    if (records.length === 0) {
-      toast.error("Processe documentos novamente para baixar uma nova versão");
-      return;
-    }
-    const data = records;
-    if (h.kind === "xlsx") await exportXlsx(h.name, data, false);
-    else if (h.kind === "pdf") await exportPdf(h.name, data, false);
-    else await exportDocx(h.name, data, false);
+  const handleSignOut = async () => {
+    await signOut();
+    navigate({ to: "/auth" });
   };
 
   return (
