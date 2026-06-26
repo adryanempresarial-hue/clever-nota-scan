@@ -409,7 +409,9 @@ function MobileScanner() {
     const blob = new Blob([buf], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-    download(blob, `mobile_${Date.now()}.xlsx`);
+    const name = `mobile_${Date.now()}.xlsx`;
+    download(blob, name);
+    saveFile(blob, name, "xlsx", records.length).catch(() => {});
   };
 
   const exportPdf = async () => {
@@ -432,7 +434,10 @@ function MobileScanner() {
       startY: 20,
       styles: { fontSize: 8 },
     });
-    download(doc.output("blob"), `mobile_${Date.now()}.pdf`);
+    const blob = doc.output("blob");
+    const name = `mobile_${Date.now()}.pdf`;
+    download(blob, name);
+    saveFile(blob, name, "pdf", records.length).catch(() => {});
   };
 
   const exportDocx = async () => {
@@ -465,7 +470,9 @@ function MobileScanner() {
     });
     const docx = new Document({ sections: [{ children }] });
     const blob = await Packer.toBlob(docx);
-    download(blob, `mobile_${Date.now()}.docx`);
+    const name = `mobile_${Date.now()}.docx`;
+    download(blob, name);
+    saveFile(blob, name, "docx", records.length).catch(() => {});
   };
 
   return (
