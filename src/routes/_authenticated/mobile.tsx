@@ -335,7 +335,7 @@ function MobileScanner() {
         setStatus("Já capturado, aponte para outro documento");
         return;
       }
-      setRecords((prev) => [rec, ...prev]);
+      await addOne(rec);
       setStatus(`✓ ${rec.nome ?? "Documento"} capturado`);
       toast.success(`Capturado: ${rec.nome ?? "documento"}`);
       // Force a cooldown after a save
@@ -632,7 +632,7 @@ function MobileScanner() {
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold">
-              Capturados {mounted ? `(${records.length})` : ""}
+              Capturados ({records.length})
             </h2>
             {records.length > 0 && (
               <Button
@@ -640,7 +640,7 @@ function MobileScanner() {
                 variant="ghost"
                 onClick={() => {
                   if (confirm("Limpar todos os registros?")) {
-                    setRecords([]);
+                    clearAll();
                   }
                 }}
               >
@@ -664,11 +664,11 @@ function MobileScanner() {
           )}
 
           <div className="space-y-3">
-            {records.map((r, idx) => (
+            {records.map((r) => (
               <MobileRecord
-                key={idx}
+                key={r._id ?? r._arquivo}
                 record={r}
-                onDelete={() => setRecords((prev) => prev.filter((_, i) => i !== idx))}
+                onDelete={() => removeOne(r._id)}
               />
             ))}
             {records.length === 0 && (
