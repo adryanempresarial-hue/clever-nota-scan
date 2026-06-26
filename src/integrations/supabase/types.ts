@@ -14,7 +14,99 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      nota_files: {
+        Row: {
+          count: number
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          count?: number
+          created_at?: string
+          id?: string
+          kind: string
+          name: string
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          count?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      nota_records: {
+        Row: {
+          arquivo: string | null
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
+          cnpj: string | null
+          cpf: string | null
+          created_at: string
+          data: string | null
+          email: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          nome: string | null
+          nota_fiscal: string | null
+          numero: string | null
+          telefone: string | null
+          user_id: string
+          valor: string | null
+        }
+        Insert: {
+          arquivo?: string | null
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          cnpj?: string | null
+          cpf?: string | null
+          created_at?: string
+          data?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome?: string | null
+          nota_fiscal?: string | null
+          numero?: string | null
+          telefone?: string | null
+          user_id: string
+          valor?: string | null
+        }
+        Update: {
+          arquivo?: string | null
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          cnpj?: string | null
+          cpf?: string | null
+          created_at?: string
+          data?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          nome?: string | null
+          nota_fiscal?: string | null
+          numero?: string | null
+          telefone?: string | null
+          user_id?: string
+          valor?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
