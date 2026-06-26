@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -20,6 +20,8 @@ import {
   Pencil,
   Check,
   Smartphone,
+  LogOut,
+  Cloud,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,6 +41,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
+import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
