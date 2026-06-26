@@ -1,0 +1,234 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { NotaRecord } from "@/lib/nota.functions";
+
+const BUCKET = "nota-files";
+
+export type CloudRecord = NotaRecord & { _id?: string };
+export type CloudFile = {
+  id: string;
+  name: string;
+  kind: "docx" | "xlsx" | "pdf";
+  storage_path: string;
+  count: number;
+  created_at: string;
+};
+
+async function uid(): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
+}
+
+function mapRow(r: Record<string, unknown>): CloudRecord {
+  return {
+    _id: r.id as string,
+    _arquivo: (r.arquivo as string) ?? "",
+    nome: r.nome as string | null,
+    cpf: r.cpf as string | null,
+    cnpj: r.cnpj as string | null,
+    email: r.email as string | null,
+    telefone: r.telefone as string | null,
+    cep: r.cep as string | null,
+    endereco: r.endereco as string | null,
+    numero: r.numero as string | null,
+    bairro: r.bairro as string | null,
+    cidade: r.cidade as string | null,
+    estado: r.estado as string | null,
+    notaFiscal: r.nota_fiscal as string | null,
+    data: r.data as string | null,
+    valor: r.valor as string | null,
+  };
+}
+
+function toInsert(r: NotaRecord, user_id: string) {
+  return {
+    user_id,
+    arquivo: r._arquivo ?? "",
+    nome: r.nome ?? null,
+    cpf: r.cpf ?? null,
+    cnpj: r.cnpj ?? null,
+    email: r.email ?? null,
+    telefone: r.telefone ?? null,
+    cep: r.cep ?? null,
+    endereco: r.endereco ?? null,
+    numero: r.numero ?? null,
+    bairro: r.bairro ?? null,
+    cidade: r.cidade ?? null,
+    estado: r.estado ?? null,
+    nota_fiscal: r.notaFiscal ?? null,
+    data: r.data ?? null,
+    valor: r.valor ?? null,
+  };
+}
+
+export function useCloudRecords() {
+  const [records, setRecords] = useState<CloudRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const userIdRef = useRef<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const id = userIdRef.current ?? (await uid());
+    userIdRef.current = id;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("nota_records")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!error && data) setRecords(data.map(mapRow));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const channel = supabase
+      .channel("nota_records_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "nota_records" },
+        () => refresh(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refresh]);
+
+  const addMany = useCallback(async (recs: NotaRecord[]) => {
+    const id = userIdRef.current ?? (await uid());
+    if (!id || recs.length === 0) return;
+    setSyncing(true);
+    try {
+      const { error } = await supabase
+        .from("nota_records")
+        .insert(recs.map((r) => toInsert(r, id)));
+      if (error) throw error;
+      await refresh();
+    } finally {
+      setSyncing(false);
+    }
+  }, [refresh]);
+
+  const addOne = useCallback(
+    async (r: NotaRecord) => addMany([r]),
+    [addMany],
+  );
+
+  const removeOne = useCallback(async (recordId?: string) => {
+    if (!recordId) return;
+    setSyncing(true);
+    try {
+      await supabase.from("nota_records").delete().eq("id", recordId);
+      setRecords((prev) => prev.filter((r) => r._id !== recordId));
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  const clearAll = useCallback(async () => {
+    const id = userIdRef.current ?? (await uid());
+    if (!id) return;
+    setSyncing(true);
+    try {
+      await supabase.from("nota_records").delete().eq("user_id", id);
+      setRecords([]);
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  return { records, loading, syncing, addMany, addOne, removeOne, clearAll, refresh };
+}
+
+export function useCloudFiles() {
+  const [files, setFiles] = useState<CloudFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const userIdRef = useRef<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const id = userIdRef.current ?? (await uid());
+    userIdRef.current = id;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    const { data } = await supabase
+      .from("nota_files")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setFiles(data as CloudFile[]);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const channel = supabase
+      .channel("nota_files_live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "nota_files" },
+        () => refresh(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refresh]);
+
+  const saveFile = useCallback(
+    async (blob: Blob, name: string, kind: "docx" | "xlsx" | "pdf", count: number) => {
+      const id = userIdRef.current ?? (await uid());
+      if (!id) throw new Error("Sem sessão");
+      setSyncing(true);
+      try {
+        const path = `${id}/${crypto.randomUUID()}-${name}`;
+        const { error: upErr } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, blob, { contentType: blob.type || undefined });
+        if (upErr) throw upErr;
+        const { error: insErr } = await supabase
+          .from("nota_files")
+          .insert({ user_id: id, name, kind, storage_path: path, count });
+        if (insErr) throw insErr;
+        await refresh();
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [refresh],
+  );
+
+  const downloadFile = useCallback(async (f: CloudFile) => {
+    const { data, error } = await supabase.storage.from(BUCKET).download(f.storage_path);
+    if (error || !data) throw error ?? new Error("Falha no download");
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = f.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, []);
+
+  const removeFile = useCallback(async (f: CloudFile) => {
+    setSyncing(true);
+    try {
+      await supabase.storage.from(BUCKET).remove([f.storage_path]);
+      await supabase.from("nota_files").delete().eq("id", f.id);
+      setFiles((prev) => prev.filter((x) => x.id !== f.id));
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  return { files, loading, syncing, saveFile, downloadFile, removeFile, refresh };
+}
+
+export async function signOut() {
+  await supabase.auth.signOut();
+}

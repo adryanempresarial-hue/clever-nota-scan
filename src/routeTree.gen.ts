@@ -9,68 +9,68 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as MobileRouteImport } from './routes/mobile'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedMobileRouteImport } from './routes/_authenticated/mobile'
 
-const MobileRoute = MobileRouteImport.update({
-  id: '/mobile',
-  path: '/mobile',
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+  id: '/_authenticated/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AuthenticatedMobileRoute = AuthenticatedMobileRouteImport.update({
+  id: '/_authenticated/mobile',
+  path: '/mobile',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/mobile': typeof MobileRoute
+  '/mobile': typeof AuthenticatedMobileRoute
+  '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/mobile': typeof MobileRoute
+  '/mobile': typeof AuthenticatedMobileRoute
+  '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/mobile': typeof MobileRoute
+  '/_authenticated/mobile': typeof AuthenticatedMobileRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/mobile'
+  fullPaths: '/mobile' | '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/mobile'
-  id: '__root__' | '/' | '/mobile'
+  to: '/mobile' | '/'
+  id: '__root__' | '/_authenticated/mobile' | '/_authenticated/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  MobileRoute: typeof MobileRoute
+  AuthenticatedMobileRoute: typeof AuthenticatedMobileRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/mobile': {
-      id: '/mobile'
-      path: '/mobile'
-      fullPath: '/mobile'
-      preLoaderRoute: typeof MobileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/mobile': {
+      id: '/_authenticated/mobile'
+      path: '/mobile'
+      fullPath: '/mobile'
+      preLoaderRoute: typeof AuthenticatedMobileRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  MobileRoute: MobileRoute,
+  AuthenticatedMobileRoute: AuthenticatedMobileRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -40,7 +40,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
       { title: "NOTA · D4S — Extração inteligente de notas fiscais" },

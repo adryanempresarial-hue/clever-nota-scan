@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
 
-export const Route = createFileRoute("/mobile")({
+export const Route = createFileRoute("/_authenticated/mobile")({
   head: () => ({
     meta: [
       { title: "NOTA Mobile · Scanner ao vivo" },
