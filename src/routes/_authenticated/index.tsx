@@ -79,7 +79,6 @@ const FIELD_LABELS: Record<FieldKey, string> = {
 };
 
 type ExportKind = "docx" | "xlsx" | "pdf";
-type HistoryItem = { id: string; name: string; kind: ExportKind; date: string; count: number };
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -93,21 +92,9 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function loadHistory(): HistoryItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem("nota.history") || "[]");
-  } catch {
-    return [];
-  }
-}
-function saveHistory(items: HistoryItem[]) {
-  localStorage.setItem("nota.history", JSON.stringify(items));
-}
-
-function nextVersionedName(base: string, ext: ExportKind, history: HistoryItem[]) {
+function nextVersionedName(base: string, ext: ExportKind, existing: { name: string; kind: ExportKind }[]) {
   const prefix = `${base}_`;
-  const used = history
+  const used = existing
     .filter((h) => h.kind === ext && h.name.startsWith(prefix))
     .map((h) => {
       const m = h.name.match(/_(\d{3})\./);
