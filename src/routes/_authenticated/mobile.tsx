@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
+import { useCloudRecords, useCloudFiles } from "@/lib/nota-sync";
 
 export const Route = createFileRoute("/_authenticated/mobile")({
   head: () => ({
