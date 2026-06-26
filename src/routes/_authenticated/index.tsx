@@ -743,7 +743,7 @@ function downloadBlob(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boolean) {
+async function buildXlsx(records: NotaRecord[], emailsOnly: boolean): Promise<Blob> {
   const XLSX = await import("xlsx");
   let rows: Record<string, string>[];
   let headers: string[];
@@ -779,15 +779,12 @@ async function exportXlsx(name: string, records: NotaRecord[], emailsOnly: boole
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Dados");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-  downloadBlob(
-    new Blob([buf], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }),
-    name,
-  );
+  return new Blob([buf], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 }
 
-async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolean) {
+async function buildPdf(records: NotaRecord[], emailsOnly: boolean): Promise<Blob> {
   const { default: jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const doc = new jsPDF({ orientation: emailsOnly ? "p" : "l" });
@@ -840,10 +837,10 @@ async function exportPdf(name: string, records: NotaRecord[], emailsOnly: boolea
       },
     });
   }
-  downloadBlob(doc.output("blob"), name);
+  return doc.output("blob");
 }
 
-async function exportDocx(name: string, records: NotaRecord[], emailsOnly: boolean) {
+async function buildDocx(records: NotaRecord[], emailsOnly: boolean): Promise<Blob> {
   const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import("docx");
   const children: InstanceType<typeof Paragraph>[] = [
     new Paragraph({
@@ -892,6 +889,5 @@ async function exportDocx(name: string, records: NotaRecord[], emailsOnly: boole
   }
 
   const doc = new Document({ sections: [{ children }] });
-  const blob = await Packer.toBlob(doc);
-  downloadBlob(blob, name);
+  return Packer.toBlob(doc);
 }
