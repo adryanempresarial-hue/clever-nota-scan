@@ -266,6 +266,14 @@ function NotaTool() {
               <Smartphone className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Scanner Mobile</span>
             </Link>
+            <Link
+              to="/download"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border hover:bg-muted transition-colors"
+              title="Baixar como aplicativo"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Baixar app</span>
+            </Link>
             <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-medium hidden sm:inline">
               Plano Empresarial
             </span>
