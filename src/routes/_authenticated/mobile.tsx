@@ -161,19 +161,45 @@ function MobileScanner() {
       );
       return;
     }
+    // Kick off getUserMedia SYNCHRONOUSLY inside the user gesture to preserve
+    // gesture provenance (some browsers block media APIs after async breaks).
+    const primary = navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+      audio: false,
+    });
     setPermissionState("requesting");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await primary;
+      } catch (err) {
+        const name = (err as { name?: string })?.name || "";
+        // Fallback to simplest constraints if the device rejects the ideal ones
+        // (common on desktops without a rear camera, or older webcams).
+        if (
+          name === "OverconstrainedError" ||
+          name === "ConstraintNotSatisfiedError" ||
+          name === "NotFoundError" ||
+          name === "NotReadableError"
+        ) {
+          console.warn("[NOTA] camera fallback after", name);
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } else {
+          throw err;
+        }
+      }
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        // Don't fail the whole flow if autoplay is blocked — the stream is live.
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn("[NOTA] video.play() rejected", playErr);
+        }
       }
       // torch detection
       const track = stream.getVideoTracks()[0];
