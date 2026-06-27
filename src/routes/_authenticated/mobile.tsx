@@ -93,6 +93,9 @@ function MobileScanner() {
   const [installed, setInstalled] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [showIosHelp, setShowIosHelp] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [inIframe, setInIframe] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
 
   const extract = useServerFn(extractFromFiles);
 
@@ -101,6 +104,12 @@ function MobileScanner() {
     const ua = navigator.userAgent || "";
     const iOS = /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
     setIsIos(iOS);
+    setIsAndroid(/Android/i.test(ua));
+    try {
+      setInIframe(window.self !== window.top);
+    } catch {
+      setInIframe(true);
+    }
     const standalone =
       window.matchMedia?.("(display-mode: standalone)").matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;
@@ -142,8 +151,10 @@ function MobileScanner() {
       setShowIosHelp(true);
       return;
     }
-    toast.info("Use o menu do navegador → Instalar aplicativo");
+    setShowInstallHelp(true);
   };
+
+  const PUBLISHED_URL = "https://clever-nota-scan.lovable.app/mobile";
 
   const startCamera = async () => {
     setPermissionError("");
@@ -637,6 +648,48 @@ function MobileScanner() {
               <li>Confirme em "Adicionar". O NOTA aparecerá como app.</li>
             </ol>
             <Button size="sm" variant="ghost" onClick={() => setShowIosHelp(false)}>
+              Fechar
+            </Button>
+          </Card>
+        )}
+
+        {showInstallHelp && (
+          <Card className="p-4 space-y-3 text-sm">
+            <div className="font-semibold flex items-center gap-2">
+              <Smartphone className="w-4 h-4" /> Como instalar o app
+            </div>
+            {inIframe && (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                <p className="font-medium">
+                  Você está vendo o app dentro do editor. Para instalar, abra o app em uma aba própria:
+                </p>
+                <Button asChild size="sm" variant="default">
+                  <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
+                    Abrir app em nova aba
+                  </a>
+                </Button>
+              </div>
+            )}
+            <div>
+              <div className="font-medium mb-1">
+                {isAndroid ? "Android / Chrome:" : "Chrome / Edge no computador:"}
+              </div>
+              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+                <li>Abra o menu do navegador (⋮).</li>
+                <li>
+                  Toque em{" "}
+                  <span className="font-medium">
+                    {isAndroid ? "Adicionar à tela inicial" : "Instalar aplicativo"}
+                  </span>
+                  .
+                </li>
+                <li>Confirme. O NOTA abre como app independente.</li>
+              </ol>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Dica: se a opção não aparecer, recarregue a página depois de carregar tudo uma vez.
+            </p>
+            <Button size="sm" variant="ghost" onClick={() => setShowInstallHelp(false)}>
               Fechar
             </Button>
           </Card>
