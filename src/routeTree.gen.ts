@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedMobileRouteImport } from './routes/_authenticated/mobile'
+import { Route as AuthenticatedDownloadRouteImport } from './routes/_authenticated/download'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -33,14 +34,21 @@ const AuthenticatedMobileRoute = AuthenticatedMobileRouteImport.update({
   path: '/mobile',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDownloadRoute = AuthenticatedDownloadRouteImport.update({
+  id: '/download',
+  path: '/download',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/download': typeof AuthenticatedDownloadRoute
   '/mobile': typeof AuthenticatedMobileRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/download': typeof AuthenticatedDownloadRoute
   '/mobile': typeof AuthenticatedMobileRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -48,18 +56,20 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/download': typeof AuthenticatedDownloadRoute
   '/_authenticated/mobile': typeof AuthenticatedMobileRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/mobile'
+  fullPaths: '/' | '/auth' | '/download' | '/mobile'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/mobile' | '/'
+  to: '/auth' | '/download' | '/mobile' | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/download'
     | '/_authenticated/mobile'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -99,15 +109,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMobileRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/download': {
+      id: '/_authenticated/download'
+      path: '/download'
+      fullPath: '/download'
+      preLoaderRoute: typeof AuthenticatedDownloadRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedDownloadRoute: typeof AuthenticatedDownloadRoute
   AuthenticatedMobileRoute: typeof AuthenticatedMobileRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedDownloadRoute: AuthenticatedDownloadRoute,
   AuthenticatedMobileRoute: AuthenticatedMobileRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
