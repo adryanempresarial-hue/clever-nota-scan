@@ -309,6 +309,24 @@ function MobileScanner() {
 
   useEffect(() => () => stopCamera(), []);
 
+  // Safety net: never let a stray promise rejection from MediaStream / Supabase
+  // realtime tear down the route and trigger the root error boundary.
+  useEffect(() => {
+    const onRej = (e: PromiseRejectionEvent) => {
+      const msg = String(e.reason?.message ?? e.reason ?? "");
+      if (
+        /getUserMedia|MediaStream|NotAllowed|NotReadable|NotFound|Overconstrained|play\(\)/i.test(
+          msg,
+        )
+      ) {
+        e.preventDefault();
+        console.warn("[NOTA] swallowed media rejection", e.reason);
+      }
+    };
+    window.addEventListener("unhandledrejection", onRej);
+    return () => window.removeEventListener("unhandledrejection", onRej);
+  }, []);
+
   // Hash a downscaled grayscale frame for stability detection
   const computeHash = (): number[] | null => {
     const v = videoRef.current;
