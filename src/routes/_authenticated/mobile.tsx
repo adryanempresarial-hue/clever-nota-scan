@@ -44,7 +44,31 @@ export const Route = createFileRoute("/_authenticated/mobile")({
     ],
   }),
   component: MobileScanner,
+  errorComponent: MobileErrorFallback,
 });
+
+function MobileErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
+  console.error("[NOTA mobile] route error", error);
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+      <div className="max-w-sm text-center space-y-4">
+        <ShieldAlert className="w-10 h-10 mx-auto text-amber-500" />
+        <h1 className="text-lg font-semibold">Não foi possível abrir o scanner</h1>
+        <p className="text-sm text-muted-foreground">
+          Tente novamente. Se persistir, atualize a página ou volte ao desktop.
+        </p>
+        <div className="flex gap-2 justify-center">
+          <Button size="sm" onClick={() => reset()}>
+            <RefreshCw className="w-4 h-4 mr-1.5" /> Tentar novamente
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/">Voltar</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const FIELD_ORDER = ["nome", "cpf", "telefone", "email", "cep", "numero"] as const;
 type FieldKey = (typeof FIELD_ORDER)[number];
@@ -174,14 +198,20 @@ function MobileScanner() {
     }
     // Kick off getUserMedia SYNCHRONOUSLY inside the user gesture to preserve
     // gesture provenance (some browsers block media APIs after async breaks).
-    const primary = navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      },
-      audio: false,
-    });
+    let primary: Promise<MediaStream>;
+    try {
+      primary = navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+    } catch (syncErr) {
+      console.warn("[NOTA] getUserMedia sync throw", syncErr);
+      primary = navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
     setPermissionState("requesting");
     try {
       let stream: MediaStream;
@@ -204,10 +234,13 @@ function MobileScanner() {
         }
       }
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        const video = videoRef.current;
+        video.setAttribute("playsinline", "true");
+        video.muted = true;
+        video.srcObject = stream;
         // Don't fail the whole flow if autoplay is blocked — the stream is live.
         try {
-          await videoRef.current.play();
+          await video.play();
         } catch (playErr) {
           console.warn("[NOTA] video.play() rejected", playErr);
         }
@@ -285,7 +318,7 @@ function MobileScanner() {
       H = 16;
     c.width = W;
     c.height = H;
-    const ctx = c.getContext("2d");
+    const ctx = c.getContext("2d", { willReadFrequently: true });
     if (!ctx) return null;
     ctx.drawImage(v, 0, 0, W, H);
     const data = ctx.getImageData(0, 0, W, H).data;
