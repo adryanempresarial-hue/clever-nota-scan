@@ -22,6 +22,7 @@ import {
   Smartphone,
   LogOut,
   Cloud,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -295,6 +296,10 @@ function NotaTool() {
               <FileImage className="w-4 h-4 mr-2" />
               Salvos{loadingCloud ? "" : ` (${records.length})`}
             </TabsTrigger>
+            <TabsTrigger value="emails">
+              <Mail className="w-4 h-4 mr-2" />
+              E-mails
+            </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
               Arquivos Gerados{loadingCloud ? "" : ` (${cloudFiles.length})`}
@@ -473,6 +478,10 @@ function NotaTool() {
                 </div>
               </>
             )}
+          </TabsContent>
+
+          <TabsContent value="emails">
+            <EmailsTab records={records} onSaveFile={saveFile} />
           </TabsContent>
 
           <TabsContent value="historico">
