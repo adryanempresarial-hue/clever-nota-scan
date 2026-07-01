@@ -196,22 +196,42 @@ function MobileScanner() {
       );
       return;
     }
+    // Detect iframe embedding without camera permission policy — common cause
+    // of NotAllowedError inside editors/previews. Guide the user to open the
+    // published URL where the top-level document controls the policy.
+    let embedded = false;
+    try {
+      embedded = window.self !== window.top;
+    } catch {
+      embedded = true;
+    }
+    try {
+      const fp = (document as unknown as { featurePolicy?: { allowsFeature: (n: string) => boolean }; permissionsPolicy?: { allowsFeature: (n: string) => boolean } });
+      const pol = fp.featurePolicy ?? fp.permissionsPolicy;
+      if (pol && !pol.allowsFeature("camera")) {
+        setPermissionState("unavailable");
+        setPermissionError(
+          embedded
+            ? "A câmera está bloqueada dentro deste ambiente. Abra o app em uma aba própria para liberar o acesso."
+            : "A política deste site bloqueia o acesso à câmera.",
+        );
+        return;
+      }
+    } catch {
+      /* featurePolicy is optional */
+    }
     // Kick off getUserMedia SYNCHRONOUSLY inside the user gesture to preserve
     // gesture provenance (some browsers block media APIs after async breaks).
-    let primary: Promise<MediaStream>;
-    try {
-      primary = navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
-    } catch (syncErr) {
-      console.warn("[NOTA] getUserMedia sync throw", syncErr);
-      primary = navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    }
+    // getUserMedia returns a Promise; it does not throw synchronously, so no
+    // try/catch is needed around the call itself.
+    const primary = navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+      audio: false,
+    });
     setPermissionState("requesting");
     try {
       let stream: MediaStream;
@@ -224,7 +244,6 @@ function MobileScanner() {
         if (
           name === "OverconstrainedError" ||
           name === "ConstraintNotSatisfiedError" ||
-          name === "NotFoundError" ||
           name === "NotReadableError"
         ) {
           console.warn("[NOTA] camera fallback after", name);
@@ -263,7 +282,9 @@ function MobileScanner() {
       ) {
         setPermissionState("denied");
         setPermissionError(
-          "Você bloqueou o acesso à câmera. Permita o uso nas configurações do navegador e tente novamente.",
+          embedded
+            ? "Câmera bloqueada. Se estiver vendo pelo editor, abra o app em uma aba própria e permita o acesso quando o navegador perguntar."
+            : "Você bloqueou o acesso à câmera. Permita o uso nas configurações do navegador e tente novamente.",
         );
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
         setPermissionState("unavailable");
