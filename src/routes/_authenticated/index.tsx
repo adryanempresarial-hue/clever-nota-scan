@@ -908,3 +908,179 @@ async function buildDocx(records: NotaRecord[], emailsOnly: boolean): Promise<Bl
   const doc = new Document({ sections: [{ children }] });
   return Packer.toBlob(doc);
 }
+
+// ---------- Aba de E-mails com filtro por data ----------
+
+function toLocalDateInput(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+type EmailEntry = { email: string; nome: string; date: Date; arquivo: string };
+
+function EmailsTab({
+  records,
+  onSaveFile,
+}: {
+  records: (NotaRecord & { _id?: string; _createdAt?: string })[];
+  onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+}) {
+  const today = useMemo(() => toLocalDateInput(new Date()), []);
+  const [from, setFrom] = useState<string>(today);
+  const [to, setTo] = useState<string>(today);
+  const [generating, setGenerating] = useState(false);
+
+  const entries = useMemo<EmailEntry[]>(() => {
+    return records
+      .filter((r) => r.email)
+      .map((r) => ({
+        email: r.email as string,
+        nome: r.nome ?? "",
+        arquivo: r._arquivo ?? "",
+        date: r._createdAt ? new Date(r._createdAt) : new Date(0),
+      }));
+  }, [records]);
+
+  const filtered = useMemo(() => {
+    const start = from ? new Date(`${from}T00:00:00`) : null;
+    const end = to ? new Date(`${to}T23:59:59.999`) : null;
+    return entries
+      .filter((e) => (start ? e.date >= start : true) && (end ? e.date <= end : true))
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [entries, from, to]);
+
+  const copyAll = async () => {
+    if (filtered.length === 0) return toast.error("Nenhum e-mail no período");
+    await navigator.clipboard.writeText(filtered.map((e) => e.email).join("\n"));
+    toast.success(`${filtered.length} e-mail(s) copiado(s)`);
+  };
+
+  const exportPdf = async () => {
+    if (filtered.length === 0) return toast.error("Nenhum e-mail no período");
+    setGenerating(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+      const doc = new jsPDF({ orientation: "p" });
+      doc.setFillColor(20, 120, 150);
+      doc.rect(0, 0, doc.internal.pageSize.getWidth(), 22, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.text("D4S · NOTA — E-mails", 14, 14);
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      const range =
+        from && to
+          ? `Período: ${new Date(`${from}T00:00:00`).toLocaleDateString("pt-BR")} até ${new Date(`${to}T00:00:00`).toLocaleDateString("pt-BR")}`
+          : "Todos os períodos";
+      doc.text(range, 14, 30);
+      doc.text(`${filtered.length} e-mail(s)`, 14, 36);
+      autoTable(doc, {
+        head: [["Data", "Nome", "E-mail"]],
+        body: filtered.map((e) => [
+          e.date.getTime() > 0 ? e.date.toLocaleDateString("pt-BR") : "—",
+          e.nome || "—",
+          e.email,
+        ]),
+        startY: 42,
+        headStyles: { fillColor: [20, 120, 150] },
+        styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak" },
+      });
+      const blob = doc.output("blob");
+      const stamp = `${from || "inicio"}_a_${to || "hoje"}`;
+      const name = nextVersionedName(`emails_${stamp}`, "pdf", []);
+      downloadBlob(blob, name);
+      await onSaveFile(blob, name, "pdf", filtered.length);
+      toast.success(`PDF gerado: ${name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao gerar PDF");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const setPreset = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    setFrom(toLocalDateInput(start));
+    setTo(toLocalDateInput(end));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-primary" />
+          <h3 className="font-semibold">Filtrar por data</h3>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <div>
+            <Label htmlFor="from" className="text-xs text-muted-foreground">De</Label>
+            <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="to" className="text-xs text-muted-foreground">Até</Label>
+            <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <div className="flex items-end">
+            <Button variant="ghost" size="sm" onClick={() => { setFrom(""); setTo(""); }}>
+              Limpar
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setFrom(today); setTo(today); }}>
+            Hoje
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPreset(7)}>Últimos 7 dias</Button>
+          <Button variant="outline" size="sm" onClick={() => setPreset(30)}>Últimos 30 dias</Button>
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">
+          {filtered.length} e-mail(s) no período
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={copyAll} disabled={filtered.length === 0}>
+            <Copy className="w-4 h-4 mr-2" /> Copiar todos
+          </Button>
+          <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
+            {generating ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 mr-2" />
+            )}
+            Exportar PDF
+          </Button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <Card className="p-12 text-center text-muted-foreground">
+          <Mail className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          Nenhum e-mail encontrado no período selecionado.
+        </Card>
+      ) : (
+        <Card className="divide-y">
+          {filtered.map((e, i) => (
+            <div key={i} className="p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{e.email}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {e.nome || "Sem nome"} ·{" "}
+                  {e.date.getTime() > 0 ? e.date.toLocaleString("pt-BR") : "—"}
+                </div>
+              </div>
+              <CopyButton value={e.email} label="e-mail" />
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
