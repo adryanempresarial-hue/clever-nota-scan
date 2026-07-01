@@ -4,8 +4,7 @@ import type { NotaRecord } from "@/lib/nota.functions";
 
 const BUCKET = "nota-files";
 
-export type CloudRecord = NotaRecord & { _id?: string };
-export type CloudRecordWithDate = CloudRecord & { _createdAt?: string };
+export type CloudRecord = NotaRecord & { _id?: string; _createdAt?: string };
 export type CloudFile = {
   id: string;
   name: string;
