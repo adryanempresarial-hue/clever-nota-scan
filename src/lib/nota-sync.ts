@@ -5,6 +5,7 @@ import type { NotaRecord } from "@/lib/nota.functions";
 const BUCKET = "nota-files";
 
 export type CloudRecord = NotaRecord & { _id?: string };
+export type CloudRecordWithDate = CloudRecord & { _createdAt?: string };
 export type CloudFile = {
   id: string;
   name: string;
@@ -22,6 +23,7 @@ async function uid(): Promise<string | null> {
 function mapRow(r: Record<string, unknown>): CloudRecord {
   return {
     _id: r.id as string,
+    _createdAt: r.created_at as string,
     _arquivo: (r.arquivo as string) ?? "",
     nome: r.nome as string | null,
     cpf: r.cpf as string | null,
