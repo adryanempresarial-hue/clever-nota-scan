@@ -110,6 +110,8 @@ function NotaTool() {
   const [files, setFiles] = useState<File[]>([]);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [autoProcess, setAutoProcess] = useState(true);
+  const pendingAutoRef = useRef(false);
   const {
     records,
     loading: loadingRecords,
@@ -147,6 +149,7 @@ function NotaTool() {
         toast.warning(`Máximo de ${MAX_FILES} arquivos por vez`);
       return merged;
     });
+    if (autoProcess && valid.length > 0) pendingAutoRef.current = true;
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -172,6 +175,7 @@ function NotaTool() {
       await addMany(res.records);
       setProgress(100);
       toast.success(`${res.records.length} documento(s) processado(s)`);
+      setFiles([]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
       toast.error(msg);
@@ -181,6 +185,16 @@ function NotaTool() {
       setTimeout(() => setProgress(0), 1200);
     }
   };
+
+  // Leitura instantânea: dispara extração automaticamente ao adicionar arquivos
+  useEffect(() => {
+    if (!pendingAutoRef.current) return;
+    if (processing) return;
+    if (files.length === 0) return;
+    pendingAutoRef.current = false;
+    handleProcess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, processing]);
 
   const allEmails = useMemo(() => {
     const set = new Set<string>();
@@ -343,14 +357,25 @@ function NotaTool() {
                   <span className="text-sm font-medium">
                     {files.length} arquivo(s) selecionado(s)
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFiles([])}
-                    disabled={processing}
-                  >
-                    Limpar
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoProcess}
+                        onChange={(e) => setAutoProcess(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Leitura instantânea
+                    </label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFiles([])}
+                      disabled={processing}
+                    >
+                      Limpar
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {files.map((f, i) => (
@@ -931,6 +956,8 @@ function EmailsTab({
   const [from, setFrom] = useState<string>(today);
   const [to, setTo] = useState<string>(today);
   const [generating, setGenerating] = useState(false);
+  const [title, setTitle] = useState<string>("D4S · NOTA — E-mails");
+  const [subtitle, setSubtitle] = useState<string>("");
 
   const entries = useMemo<EmailEntry[]>(() => {
     return records
@@ -968,15 +995,24 @@ function EmailsTab({
       doc.rect(0, 0, doc.internal.pageSize.getWidth(), 22, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(16);
-      doc.text("D4S · NOTA — E-mails", 14, 14);
+      doc.text(title || "D4S · NOTA — E-mails", 14, 14);
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(10);
       const range =
         from && to
           ? `Período: ${new Date(`${from}T00:00:00`).toLocaleDateString("pt-BR")} até ${new Date(`${to}T00:00:00`).toLocaleDateString("pt-BR")}`
           : "Todos os períodos";
-      doc.text(range, 14, 30);
-      doc.text(`${filtered.length} e-mail(s)`, 14, 36);
+      let y = 30;
+      if (subtitle.trim()) {
+        doc.setFontSize(11);
+        doc.text(subtitle.trim(), 14, y);
+        y += 6;
+        doc.setFontSize(10);
+      }
+      doc.text(range, 14, y);
+      y += 6;
+      doc.text(`${filtered.length} e-mail(s)`, 14, y);
+      y += 4;
       autoTable(doc, {
         head: [["Data", "Nome", "E-mail"]],
         body: filtered.map((e) => [
@@ -984,13 +1020,20 @@ function EmailsTab({
           e.nome || "—",
           e.email,
         ]),
-        startY: 42,
+        startY: y + 4,
         headStyles: { fillColor: [20, 120, 150] },
         styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak" },
       });
       const blob = doc.output("blob");
       const stamp = `${from || "inicio"}_a_${to || "hoje"}`;
-      const name = nextVersionedName(`emails_${stamp}`, "pdf", []);
+      const safeTitle = (title || "emails")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 40) || "emails";
+      const name = nextVersionedName(`${safeTitle}_${stamp}`, "pdf", []);
       downloadBlob(blob, name);
       await onSaveFile(blob, name, "pdf", filtered.length);
       toast.success(`PDF gerado: ${name}`);
@@ -1039,6 +1082,38 @@ function EmailsTab({
           <Button variant="outline" size="sm" onClick={() => setPreset(7)}>Últimos 7 dias</Button>
           <Button variant="outline" size="sm" onClick={() => setPreset(30)}>Últimos 30 dias</Button>
         </div>
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Pencil className="w-4 h-4 text-primary" />
+          <h3 className="font-semibold">Cabeçalho do PDF</h3>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="pdf-title" className="text-xs text-muted-foreground">Título</Label>
+            <Input
+              id="pdf-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex.: Lista de e-mails — Junho 2026"
+            />
+          </div>
+          <div>
+            <Label htmlFor="pdf-sub" className="text-xs text-muted-foreground">
+              Subtítulo (opcional)
+            </Label>
+            <Input
+              id="pdf-sub"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              placeholder="Ex.: Campanha CRM"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          O título aparece no topo do PDF e também é usado no nome do arquivo.
+        </p>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
