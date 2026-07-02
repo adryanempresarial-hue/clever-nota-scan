@@ -110,6 +110,8 @@ function NotaTool() {
   const [files, setFiles] = useState<File[]>([]);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [autoProcess, setAutoProcess] = useState(true);
+  const pendingAutoRef = useRef(false);
   const {
     records,
     loading: loadingRecords,
@@ -147,6 +149,7 @@ function NotaTool() {
         toast.warning(`Máximo de ${MAX_FILES} arquivos por vez`);
       return merged;
     });
+    if (autoProcess && valid.length > 0) pendingAutoRef.current = true;
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -172,6 +175,7 @@ function NotaTool() {
       await addMany(res.records);
       setProgress(100);
       toast.success(`${res.records.length} documento(s) processado(s)`);
+      setFiles([]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
       toast.error(msg);
@@ -181,6 +185,16 @@ function NotaTool() {
       setTimeout(() => setProgress(0), 1200);
     }
   };
+
+  // Leitura instantânea: dispara extração automaticamente ao adicionar arquivos
+  useEffect(() => {
+    if (!pendingAutoRef.current) return;
+    if (processing) return;
+    if (files.length === 0) return;
+    pendingAutoRef.current = false;
+    handleProcess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, processing]);
 
   const allEmails = useMemo(() => {
     const set = new Set<string>();
@@ -343,14 +357,25 @@ function NotaTool() {
                   <span className="text-sm font-medium">
                     {files.length} arquivo(s) selecionado(s)
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFiles([])}
-                    disabled={processing}
-                  >
-                    Limpar
-                  </Button>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoProcess}
+                        onChange={(e) => setAutoProcess(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Leitura instantânea
+                    </label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFiles([])}
+                      disabled={processing}
+                    >
+                      Limpar
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {files.map((f, i) => (
