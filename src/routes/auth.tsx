@@ -15,22 +15,34 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [{ title: "Entrar · NOTA D4S" }],
   }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+  }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { redirect: redirectTo } = Route.useSearch();
+  const goHome = () => {
+    if (redirectTo && redirectTo.startsWith("/")) {
+      window.location.href = redirectTo;
+    } else {
+      navigate({ to: "/" });
+    }
+  };
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/" });
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) goHome();
       else setChecking(false);
-    });
-  }, [navigate]);
+    }).catch(() => setChecking(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handle = async (mode: "signin" | "signup") => {
     if (!email || !password) return toast.error("Preencha e-mail e senha");
@@ -48,7 +60,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      navigate({ to: "/" });
+      goHome();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Falha ao autenticar");
     } finally {
@@ -60,10 +72,10 @@ function AuthPage() {
     setLoading(true);
     try {
       const r = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: window.location.origin + (redirectTo ?? "/"),
       });
       if (r.error) throw r.error;
-      if (!r.redirected) navigate({ to: "/" });
+      if (!r.redirected) goHome();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Falha no Google");
       setLoading(false);
