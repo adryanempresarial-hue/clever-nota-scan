@@ -1180,3 +1180,437 @@ function EmailsTab({
     </div>
   );
 }
+
+// ---------- Aba de Números (telefones) com filtro por data ----------
+
+type PhoneEntry = { telefone: string; nome: string; date: Date; arquivo: string };
+
+function PhonesTab({
+  records,
+  onSaveFile,
+}: {
+  records: (NotaRecord & { _id?: string; _createdAt?: string })[];
+  onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+}) {
+  const today = useMemo(() => toLocalDateInput(new Date()), []);
+  const [from, setFrom] = useState<string>(today);
+  const [to, setTo] = useState<string>(today);
+  const [generating, setGenerating] = useState(false);
+  const [title, setTitle] = useState<string>("D4S · NOTA — Números");
+  const [subtitle, setSubtitle] = useState<string>("");
+
+  const entries = useMemo<PhoneEntry[]>(() => {
+    return records
+      .filter((r) => r.telefone)
+      .map((r) => ({
+        telefone: r.telefone as string,
+        nome: r.nome ?? "",
+        arquivo: r._arquivo ?? "",
+        date: r._createdAt ? new Date(r._createdAt) : new Date(0),
+      }));
+  }, [records]);
+
+  const filtered = useMemo(() => {
+    const start = from ? new Date(`${from}T00:00:00`) : null;
+    const end = to ? new Date(`${to}T23:59:59.999`) : null;
+    return entries
+      .filter((e) => (start ? e.date >= start : true) && (end ? e.date <= end : true))
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [entries, from, to]);
+
+  const copyAll = async () => {
+    if (filtered.length === 0) return toast.error("Nenhum número no período");
+    await navigator.clipboard.writeText(filtered.map((e) => e.telefone).join("\n"));
+    toast.success(`${filtered.length} número(s) copiado(s)`);
+  };
+
+  const exportPdf = async () => {
+    if (filtered.length === 0) return toast.error("Nenhum número no período");
+    setGenerating(true);
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+      const doc = new jsPDF({ orientation: "p" });
+      doc.setFillColor(20, 120, 150);
+      doc.rect(0, 0, doc.internal.pageSize.getWidth(), 22, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.text(title || "D4S · NOTA — Números", 14, 14);
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      const range =
+        from && to
+          ? `Período: ${new Date(`${from}T00:00:00`).toLocaleDateString("pt-BR")} até ${new Date(`${to}T00:00:00`).toLocaleDateString("pt-BR")}`
+          : "Todos os períodos";
+      let y = 30;
+      if (subtitle.trim()) {
+        doc.setFontSize(11);
+        doc.text(subtitle.trim(), 14, y);
+        y += 6;
+        doc.setFontSize(10);
+      }
+      doc.text(range, 14, y);
+      y += 6;
+      doc.text(`${filtered.length} número(s)`, 14, y);
+      autoTable(doc, {
+        head: [["Data", "Nome", "Telefone"]],
+        body: filtered.map((e) => [
+          e.date.getTime() > 0 ? e.date.toLocaleDateString("pt-BR") : "—",
+          e.nome || "—",
+          e.telefone,
+        ]),
+        startY: y + 4,
+        headStyles: { fillColor: [20, 120, 150] },
+        styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak" },
+      });
+      const blob = doc.output("blob");
+      const stamp = `${from || "inicio"}_a_${to || "hoje"}`;
+      const safeTitle = (title || "numeros")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 40) || "numeros";
+      const name = nextVersionedName(`${safeTitle}_${stamp}`, "pdf", []);
+      downloadBlob(blob, name);
+      await onSaveFile(blob, name, "pdf", filtered.length);
+      toast.success(`PDF gerado: ${name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao gerar PDF");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const setPreset = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    setFrom(toLocalDateInput(start));
+    setTo(toLocalDateInput(end));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-primary" />
+          <h3 className="font-semibold">Filtrar por data</h3>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <div>
+            <Label htmlFor="p-from" className="text-xs text-muted-foreground">De</Label>
+            <Input id="p-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor="p-to" className="text-xs text-muted-foreground">Até</Label>
+            <Input id="p-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <div className="flex items-end">
+            <Button variant="ghost" size="sm" onClick={() => { setFrom(""); setTo(""); }}>
+              Limpar
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => { setFrom(today); setTo(today); }}>
+            Hoje
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPreset(7)}>Últimos 7 dias</Button>
+          <Button variant="outline" size="sm" onClick={() => setPreset(30)}>Últimos 30 dias</Button>
+        </div>
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Pencil className="w-4 h-4 text-primary" />
+          <h3 className="font-semibold">Cabeçalho do PDF</h3>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="p-title" className="text-xs text-muted-foreground">Título</Label>
+            <Input
+              id="p-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex.: Lista de números — Junho 2026"
+            />
+          </div>
+          <div>
+            <Label htmlFor="p-sub" className="text-xs text-muted-foreground">
+              Subtítulo (opcional)
+            </Label>
+            <Input
+              id="p-sub"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              placeholder="Ex.: Campanha WhatsApp"
+            />
+          </div>
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">
+          {filtered.length} número(s) no período
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={copyAll} disabled={filtered.length === 0}>
+            <Copy className="w-4 h-4 mr-2" /> Copiar todos
+          </Button>
+          <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
+            {generating ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4 mr-2" />
+            )}
+            Exportar PDF
+          </Button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <Card className="p-12 text-center text-muted-foreground">
+          <Phone className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          Nenhum número encontrado no período selecionado.
+        </Card>
+      ) : (
+        <Card className="divide-y">
+          {filtered.map((e, i) => (
+            <div key={i} className="p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{e.telefone}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {e.nome || "Sem nome"} ·{" "}
+                  {e.date.getTime() > 0 ? e.date.toLocaleString("pt-BR") : "—"}
+                </div>
+              </div>
+              <CopyButton value={e.telefone} label="telefone" />
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------- Aba CRM (isolada) ----------
+
+const CRM_ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf";
+const CRM_ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
+
+function CrmTab() {
+  const { records, loading, syncing, addOne, removeOne, clearAll } = useCrmRecords();
+  const extract = useServerFn(extractFullFromFile);
+  const [processing, setProcessing] = useState(false);
+  const [current, setCurrent] = useState<string>("");
+  const [queueTotal, setQueueTotal] = useState(0);
+  const [queueDone, setQueueDone] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const scanFiles = async (list: FileList | File[]) => {
+    const arr = Array.from(list).filter((f) => CRM_ACCEPTED.includes(f.type));
+    if (arr.length === 0) {
+      toast.error("Nenhum arquivo válido");
+      return;
+    }
+    setProcessing(true);
+    setQueueTotal(arr.length);
+    setQueueDone(0);
+    // Individual: um arquivo por vez, cada um vira um registro próprio
+    for (const f of arr) {
+      setCurrent(f.name);
+      try {
+        const base64 = await fileToBase64(f);
+        const res = await extract({
+          data: { file: { name: f.name, mimeType: f.type, dataBase64: base64 } },
+        });
+        await addOne({
+          arquivo: res.extraction.arquivo,
+          documento_tipo: res.extraction.documento_tipo ?? null,
+          campos: res.extraction.campos ?? [],
+        });
+        toast.success(`✓ ${f.name}`);
+      } catch (e) {
+        console.error("[CRM]", e);
+        toast.error(`Falha em ${f.name}`);
+      } finally {
+        setQueueDone((n) => n + 1);
+      }
+    }
+    setProcessing(false);
+    setCurrent("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const exportPdf = async () => {
+    if (records.length === 0) return toast.error("Nenhum registro no CRM");
+    const { default: jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF({ orientation: "p" });
+    doc.setFillColor(20, 120, 150);
+    doc.rect(0, 0, doc.internal.pageSize.getWidth(), 22, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text("D4S · NOTA — CRM", 14, 14);
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.text(`${records.length} registro(s)`, 14, 30);
+    records.forEach((r, idx) => {
+      if (idx > 0) doc.addPage();
+      doc.setFontSize(12);
+      doc.text(`${idx + 1}. ${r.arquivo || "Sem nome"}`, 14, 44);
+      if (r.documento_tipo) {
+        doc.setFontSize(10);
+        doc.text(`Tipo: ${r.documento_tipo}`, 14, 50);
+      }
+      autoTable(doc, {
+        head: [["Campo", "Valor"]],
+        body: r.campos.map((c) => [c.rotulo, c.valor]),
+        startY: 56,
+        headStyles: { fillColor: [20, 120, 150] },
+        styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak" },
+      });
+    });
+    downloadBlob(doc.output("blob"), `crm_${Date.now()}.pdf`);
+    toast.success("PDF do CRM gerado");
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5 border-primary/30 bg-primary/5 space-y-2">
+        <div className="flex items-center gap-2">
+          <Users className="w-5 h-5 text-primary" />
+          <h3 className="font-semibold">Módulo CRM — extração completa e individual</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Escaneie um arquivo por vez. Todas as informações visíveis são extraídas
+          e salvas de forma <strong>separada</strong> das demais abas — nada se mistura.
+        </p>
+      </Card>
+
+      <Card
+        className="p-8 border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer.files && !processing) scanFiles(e.dataTransfer.files);
+        }}
+        onClick={() => !processing && inputRef.current?.click()}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept={CRM_ACCEPT}
+          className="hidden"
+          onChange={(e) => e.target.files && scanFiles(e.target.files)}
+        />
+        <div className="text-center space-y-3">
+          <div className="w-14 h-14 rounded-full bg-primary/10 mx-auto flex items-center justify-center">
+            <ScanLine className="w-7 h-7 text-primary" />
+          </div>
+          <div>
+            <p className="font-medium text-foreground">
+              {processing
+                ? `Escaneando ${queueDone + 1}/${queueTotal}: ${current}`
+                : "Arraste ou clique para escanear arquivos individualmente"}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              JPG, PNG, WEBP, PDF — cada arquivo gera um registro CRM próprio.
+            </p>
+          </div>
+          {processing && (
+            <Progress value={(queueDone / Math.max(1, queueTotal)) * 100} />
+          )}
+        </div>
+      </Card>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">
+          {loading ? "Carregando..." : `${records.length} registro(s) no CRM`}
+          {syncing && (
+            <Loader2 className="inline w-3.5 h-3.5 ml-2 animate-spin text-muted-foreground" />
+          )}
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={exportPdf} disabled={records.length === 0}>
+            <FileText className="w-4 h-4 mr-2" /> Exportar PDF
+          </Button>
+          {records.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (confirm("Remover TODOS os registros do CRM?")) {
+                  clearAll().then(() => toast.success("CRM limpo"));
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Limpar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {records.length === 0 && !loading ? (
+        <Card className="p-12 text-center text-muted-foreground">
+          <Users className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          Nenhum registro no CRM ainda. Escaneie um arquivo acima.
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {records.map((r) => (
+            <CrmCard key={r.id} record={r} onDelete={() => removeOne(r.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CrmCard({ record, onDelete }: { record: CrmRecord; onDelete: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copyAll = async () => {
+    const text = [
+      record.documento_tipo ? `Tipo: ${record.documento_tipo}` : null,
+      ...record.campos.map((c) => `${c.rotulo}: ${c.valor}`),
+    ]
+      .filter(Boolean)
+      .join("\n");
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+    toast.success("Copiado");
+  };
+  return (
+    <Card className="p-5 space-y-3">
+      <div className="flex items-start justify-between gap-2 pb-2 border-b">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold truncate">{record.arquivo || "Sem nome"}</div>
+          <div className="text-xs text-muted-foreground">
+            {record.documento_tipo || "Documento"} ·{" "}
+            {new Date(record.created_at).toLocaleString("pt-BR")}
+          </div>
+        </div>
+        <Button size="sm" variant="outline" onClick={copyAll}>
+          {copied ? <CheckCheck className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDelete} aria-label="Remover">
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+      <div className="space-y-2 max-h-80 overflow-auto pr-1">
+        {record.campos.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">Nenhum campo extraído.</p>
+        ) : (
+          record.campos.map((c, i) => (
+            <FieldRow key={i} label={c.rotulo} value={c.valor || "—"} />
+          ))
+        )}
+      </div>
+    </Card>
+  );
+}
