@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      crm_records: {
+        Row: {
+          arquivo: string
+          campos: Json
+          created_at: string
+          documento_tipo: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          arquivo?: string
+          campos?: Json
+          created_at?: string
+          documento_tipo?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          arquivo?: string
+          campos?: Json
+          created_at?: string
+          documento_tipo?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       nota_files: {
         Row: {
           count: number

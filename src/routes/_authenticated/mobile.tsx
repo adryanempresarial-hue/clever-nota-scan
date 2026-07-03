@@ -90,7 +90,7 @@ function MobileScanner() {
   const lastSentAtRef = useRef(0);
 
   const [streaming, setStreaming] = useState(false);
-  const [autoScan, setAutoScan] = useState(true);
+  const [autoScan, setAutoScan] = useState(false);
   const [processing, setProcessing] = useState(false);
   const {
     records,
@@ -196,29 +196,15 @@ function MobileScanner() {
       );
       return;
     }
-    // Detect iframe embedding without camera permission policy — common cause
-    // of NotAllowedError inside editors/previews. Guide the user to open the
-    // published URL where the top-level document controls the policy.
+    // Detect iframe embedding without failing preemptively — some browsers
+    // report featurePolicy incorrectly and rejecting here caused the
+    // "erro ao iniciar" the user saw. We just observe and let getUserMedia
+    // decide, then explain the failure if it happens.
     let embedded = false;
     try {
       embedded = window.self !== window.top;
     } catch {
       embedded = true;
-    }
-    try {
-      const fp = (document as unknown as { featurePolicy?: { allowsFeature: (n: string) => boolean }; permissionsPolicy?: { allowsFeature: (n: string) => boolean } });
-      const pol = fp.featurePolicy ?? fp.permissionsPolicy;
-      if (pol && !pol.allowsFeature("camera")) {
-        setPermissionState("unavailable");
-        setPermissionError(
-          embedded
-            ? "A câmera está bloqueada dentro deste ambiente. Abra o app em uma aba própria para liberar o acesso."
-            : "A política deste site bloqueia o acesso à câmera.",
-        );
-        return;
-      }
-    } catch {
-      /* featurePolicy is optional */
     }
     // Kick off getUserMedia SYNCHRONOUSLY inside the user gesture to preserve
     // gesture provenance (some browsers block media APIs after async breaks).
@@ -227,8 +213,8 @@ function MobileScanner() {
     const primary = navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
       },
       audio: false,
     });
@@ -353,8 +339,8 @@ function MobileScanner() {
     const v = videoRef.current;
     const c = canvasRef.current;
     if (!v || !c || v.videoWidth === 0) return null;
-    const W = 16,
-      H = 16;
+    const W = 8,
+      H = 8;
     c.width = W;
     c.height = H;
     const ctx = c.getContext("2d", { willReadFrequently: true });
@@ -470,21 +456,19 @@ function MobileScanner() {
       prevHashRef.current = h;
       if (!prev) return;
       const diff = hashDiff(h, prev);
-      // diff < 1.2 = quase parado; > 6 = se mexeu muito; precisamos de algo intermediário (documento entrou no quadro)
       if (diff < 1.2) {
         stableCountRef.current += 1;
       } else {
         stableCountRef.current = 0;
       }
-      // 4 frames estáveis (~1.3s) e algum conteúdo (variação minima na imagem)
       const variance =
         h.reduce((acc, v, i, arr) => acc + Math.abs(v - arr[Math.max(0, i - 1)]!), 0) / h.length;
-      if (stableCountRef.current >= 4 && variance > 1.5) {
+      if (stableCountRef.current >= 3 && variance > 1.5) {
         stableCountRef.current = 0;
-        lastSentAtRef.current = Date.now() + 2500;
+        lastSentAtRef.current = Date.now() + 3000;
         scanNow();
       }
-    }, 350);
+    }, 700);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streaming, autoScan, records]);
