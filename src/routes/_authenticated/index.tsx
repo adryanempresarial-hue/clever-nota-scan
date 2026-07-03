@@ -23,6 +23,9 @@ import {
   LogOut,
   Cloud,
   Calendar,
+  Phone,
+  Users,
+  ScanLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,6 +46,8 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
 import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
+import { extractFullFromFile } from "@/lib/crm.functions";
+import { useCrmRecords, type CrmRecord } from "@/lib/crm-sync";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -314,6 +319,14 @@ function NotaTool() {
               <Mail className="w-4 h-4 mr-2" />
               E-mails
             </TabsTrigger>
+            <TabsTrigger value="numeros">
+              <Phone className="w-4 h-4 mr-2" />
+              Números
+            </TabsTrigger>
+            <TabsTrigger value="crm">
+              <Users className="w-4 h-4 mr-2" />
+              CRM
+            </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
               Arquivos Gerados{loadingCloud ? "" : ` (${cloudFiles.length})`}
@@ -507,6 +520,14 @@ function NotaTool() {
 
           <TabsContent value="emails">
             <EmailsTab records={records} onSaveFile={saveFile} />
+          </TabsContent>
+
+          <TabsContent value="numeros">
+            <PhonesTab records={records} onSaveFile={saveFile} />
+          </TabsContent>
+
+          <TabsContent value="crm">
+            <CrmTab />
           </TabsContent>
 
           <TabsContent value="historico">
