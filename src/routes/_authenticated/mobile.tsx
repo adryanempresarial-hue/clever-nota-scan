@@ -339,8 +339,8 @@ function MobileScanner() {
     const v = videoRef.current;
     const c = canvasRef.current;
     if (!v || !c || v.videoWidth === 0) return null;
-    const W = 16,
-      H = 16;
+    const W = 8,
+      H = 8;
     c.width = W;
     c.height = H;
     const ctx = c.getContext("2d", { willReadFrequently: true });
