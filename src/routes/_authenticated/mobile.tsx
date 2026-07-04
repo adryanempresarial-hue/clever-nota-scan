@@ -922,10 +922,14 @@ function PermissionHelp({
   state,
   message,
   onRetry,
+  inIframe,
+  publishedUrl,
 }: {
   state: "denied" | "unavailable";
   message: string;
   onRetry: () => void;
+  inIframe?: boolean;
+  publishedUrl?: string;
 }) {
   const denied = state === "denied";
   return (
@@ -940,7 +944,14 @@ function PermissionHelp({
         {message ||
           "Não foi possível acessar a câmera deste dispositivo."}
       </p>
-      {denied && (
+      {inIframe && publishedUrl && (
+        <Button asChild size="sm">
+          <a href={publishedUrl} target="_blank" rel="noreferrer">
+            Abrir em nova aba
+          </a>
+        </Button>
+      )}
+      {denied && !inIframe && (
         <div className="text-left text-xs text-white/70 bg-white/5 rounded-md p-3 w-full space-y-1.5">
           <div className="font-medium text-white/90 flex items-center gap-1.5">
             <Settings className="w-3.5 h-3.5" /> Como liberar:
