@@ -84,6 +84,7 @@ const FIELD_LABELS: Record<FieldKey, string> = {
 function MobileScanner() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const prevHashRef = useRef<number[] | null>(null);
   const stableCountRef = useRef(0);
   const busyRef = useRef(false);
@@ -180,35 +181,44 @@ function MobileScanner() {
 
   const PUBLISHED_URL = "https://clever-nota-scan.lovable.app/mobile";
 
+  const attachStream = async (stream: MediaStream) => {
+    streamRef.current = stream;
+    if (videoRef.current) {
+      const video = videoRef.current;
+      video.setAttribute("autoplay", "true");
+      video.setAttribute("playsinline", "true");
+      video.muted = true;
+      video.srcObject = stream;
+      try {
+        await video.play();
+      } catch (playErr) {
+        console.warn("[NOTA] video.play() rejected", playErr);
+      }
+    }
+    stream.getVideoTracks().forEach((track) => {
+      track.onended = () => {
+        setStreaming(false);
+        setTorchOn(false);
+        setTorchSupported(false);
+        setStatus("Câmera pausada. Toque em iniciar para continuar.");
+      };
+    });
+  };
+
   const startCamera = async () => {
     setPermissionError("");
-    // If we're inside the Lovable editor iframe, the parent's iframe policy
-    // usually blocks camera access — surface a clear CTA to open the app
-    // in its own tab instead of showing a cryptic error.
-    let embedded = false;
-    try {
-      embedded = window.self !== window.top;
-    } catch {
-      embedded = true;
-    }
-    if (embedded) {
-      setPermissionState("denied");
-      setPermissionError(
-        "A câmera não abre dentro do editor. Toque em 'Abrir em nova aba' para usar o scanner.",
-      );
+    const existingTrack = streamRef.current?.getVideoTracks()[0];
+    if (existingTrack?.readyState === "live") {
+      await attachStream(streamRef.current!);
+      setStreaming(true);
+      setPermissionState("granted");
+      setStatus("Câmera ativa");
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia) {
       setPermissionState("unavailable");
       setPermissionError(
         "Este navegador não permite acesso à câmera. Use Chrome ou Safari atualizado.",
-      );
-      return;
-    }
-    if (!window.isSecureContext) {
-      setPermissionState("unavailable");
-      setPermissionError(
-        "A câmera só funciona em conexões seguras (HTTPS). Abra a versão publicada do app.",
       );
       return;
     }
@@ -244,18 +254,7 @@ function MobileScanner() {
           throw err;
         }
       }
-      if (videoRef.current) {
-        const video = videoRef.current;
-        video.setAttribute("playsinline", "true");
-        video.muted = true;
-        video.srcObject = stream;
-        // Don't fail the whole flow if autoplay is blocked — the stream is live.
-        try {
-          await video.play();
-        } catch (playErr) {
-          console.warn("[NOTA] video.play() rejected", playErr);
-        }
-      }
+      await attachStream(stream);
       // torch detection
       const track = stream.getVideoTracks()[0];
       const caps = (track?.getCapabilities?.() ?? {}) as MediaTrackCapabilities & { torch?: boolean };
@@ -295,8 +294,9 @@ function MobileScanner() {
 
   const stopCamera = () => {
     const v = videoRef.current;
-    const stream = v?.srcObject as MediaStream | null;
+    const stream = streamRef.current ?? (v?.srcObject as MediaStream | null);
     stream?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     if (v) v.srcObject = null;
     setStreaming(false);
     setTorchOn(false);
@@ -319,6 +319,24 @@ function MobileScanner() {
   };
 
   useEffect(() => () => stopCamera(), []);
+
+  useEffect(() => {
+    const resumeVideo = () => {
+      const video = videoRef.current;
+      const stream = streamRef.current;
+      if (!video || !stream || document.hidden) return;
+      if (video.srcObject !== stream) video.srcObject = stream;
+      if (video.paused && stream.getVideoTracks().some((track) => track.readyState === "live")) {
+        video.play().catch((err) => console.warn("[NOTA] resume camera preview failed", err));
+      }
+    };
+    document.addEventListener("visibilitychange", resumeVideo);
+    window.addEventListener("focus", resumeVideo);
+    return () => {
+      document.removeEventListener("visibilitychange", resumeVideo);
+      window.removeEventListener("focus", resumeVideo);
+    };
+  }, []);
 
   // Safety net: never let a stray promise rejection from MediaStream / Supabase
   // realtime tear down the route and trigger the root error boundary.
@@ -607,6 +625,7 @@ function MobileScanner() {
         <Card className="p-0 overflow-hidden relative bg-black aspect-[3/4] sm:aspect-video">
           <video
             ref={videoRef}
+              autoPlay
             playsInline
             muted
             className="w-full h-full object-cover"
@@ -668,17 +687,8 @@ function MobileScanner() {
                 <>
                   <Camera className="w-12 h-12 opacity-70" />
                   <p>
-                    {inIframe
-                      ? "A câmera não abre no editor. Abra em uma aba própria."
-                      : "Toque em iniciar para abrir a câmera"}
+                    Toque em iniciar para abrir a câmera
                   </p>
-                  {inIframe && (
-                    <Button asChild size="sm" className="mt-1">
-                      <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
-                        Abrir em nova aba
-                      </a>
-                    </Button>
-                  )}
                 </>
               )}
             </div>
