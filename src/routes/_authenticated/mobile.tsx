@@ -182,6 +182,22 @@ function MobileScanner() {
 
   const startCamera = async () => {
     setPermissionError("");
+    // If we're inside the Lovable editor iframe, the parent's iframe policy
+    // usually blocks camera access — surface a clear CTA to open the app
+    // in its own tab instead of showing a cryptic error.
+    let embedded = false;
+    try {
+      embedded = window.self !== window.top;
+    } catch {
+      embedded = true;
+    }
+    if (embedded) {
+      setPermissionState("denied");
+      setPermissionError(
+        "A câmera não abre dentro do editor. Toque em 'Abrir em nova aba' para usar o scanner.",
+      );
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       setPermissionState("unavailable");
       setPermissionError(
@@ -195,16 +211,6 @@ function MobileScanner() {
         "A câmera só funciona em conexões seguras (HTTPS). Abra a versão publicada do app.",
       );
       return;
-    }
-    // Detect iframe embedding without failing preemptively — some browsers
-    // report featurePolicy incorrectly and rejecting here caused the
-    // "erro ao iniciar" the user saw. We just observe and let getUserMedia
-    // decide, then explain the failure if it happens.
-    let embedded = false;
-    try {
-      embedded = window.self !== window.top;
-    } catch {
-      embedded = true;
     }
     // Kick off getUserMedia SYNCHRONOUSLY inside the user gesture to preserve
     // gesture provenance (some browsers block media APIs after async breaks).
@@ -268,9 +274,7 @@ function MobileScanner() {
       ) {
         setPermissionState("denied");
         setPermissionError(
-          embedded
-            ? "Câmera bloqueada. Se estiver vendo pelo editor, abra o app em uma aba própria e permita o acesso quando o navegador perguntar."
-            : "Você bloqueou o acesso à câmera. Permita o uso nas configurações do navegador e tente novamente.",
+          "Você bloqueou o acesso à câmera. Permita o uso nas configurações do navegador e tente novamente.",
         );
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
         setPermissionState("unavailable");
@@ -649,6 +653,8 @@ function MobileScanner() {
                   state={permissionState}
                   message={permissionError}
                   onRetry={startCamera}
+                  inIframe={inIframe}
+                  publishedUrl={PUBLISHED_URL}
                 />
               ) : permissionState === "requesting" ? (
                 <>
@@ -661,7 +667,18 @@ function MobileScanner() {
               ) : (
                 <>
                   <Camera className="w-12 h-12 opacity-70" />
-                  <p>Toque em iniciar para abrir a câmera</p>
+                  <p>
+                    {inIframe
+                      ? "A câmera não abre no editor. Abra em uma aba própria."
+                      : "Toque em iniciar para abrir a câmera"}
+                  </p>
+                  {inIframe && (
+                    <Button asChild size="sm" className="mt-1">
+                      <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
+                        Abrir em nova aba
+                      </a>
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -905,10 +922,14 @@ function PermissionHelp({
   state,
   message,
   onRetry,
+  inIframe,
+  publishedUrl,
 }: {
   state: "denied" | "unavailable";
   message: string;
   onRetry: () => void;
+  inIframe?: boolean;
+  publishedUrl?: string;
 }) {
   const denied = state === "denied";
   return (
@@ -923,7 +944,14 @@ function PermissionHelp({
         {message ||
           "Não foi possível acessar a câmera deste dispositivo."}
       </p>
-      {denied && (
+      {inIframe && publishedUrl && (
+        <Button asChild size="sm">
+          <a href={publishedUrl} target="_blank" rel="noreferrer">
+            Abrir em nova aba
+          </a>
+        </Button>
+      )}
+      {denied && !inIframe && (
         <div className="text-left text-xs text-white/70 bg-white/5 rounded-md p-3 w-full space-y-1.5">
           <div className="font-medium text-white/90 flex items-center gap-1.5">
             <Settings className="w-3.5 h-3.5" /> Como liberar:
