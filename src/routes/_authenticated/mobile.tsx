@@ -653,6 +653,8 @@ function MobileScanner() {
                   state={permissionState}
                   message={permissionError}
                   onRetry={startCamera}
+                  inIframe={inIframe}
+                  publishedUrl={PUBLISHED_URL}
                 />
               ) : permissionState === "requesting" ? (
                 <>
@@ -665,7 +667,18 @@ function MobileScanner() {
               ) : (
                 <>
                   <Camera className="w-12 h-12 opacity-70" />
-                  <p>Toque em iniciar para abrir a câmera</p>
+                  <p>
+                    {inIframe
+                      ? "A câmera não abre no editor. Abra em uma aba própria."
+                      : "Toque em iniciar para abrir a câmera"}
+                  </p>
+                  {inIframe && (
+                    <Button asChild size="sm" className="mt-1">
+                      <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
+                        Abrir em nova aba
+                      </a>
+                    </Button>
+                  )}
                 </>
               )}
             </div>
