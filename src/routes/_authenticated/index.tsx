@@ -1422,7 +1422,7 @@ function filterCampos<T extends { rotulo: string }>(campos: T[], selected: Recor
 }
 
 function CrmTab() {
-  const { records, loading, syncing, addOne, removeOne, clearAll } = useCrmRecords();
+  const { records, loading, syncing, addOne, upsertOne, removeOne, clearAll } = useCrmRecords();
   const extract = useServerFn(extractFullFromFile);
   const [processing, setProcessing] = useState(false);
   const [current, setCurrent] = useState<string>("");
@@ -1484,12 +1484,20 @@ function CrmTab() {
         const res = await extract({
           data: { file: { name: f.name, mimeType: f.type, dataBase64: base64 } },
         });
-        await addOne({
+        const result = await upsertOne({
           arquivo: res.extraction.arquivo,
           documento_tipo: res.extraction.documento_tipo ?? null,
           campos: res.extraction.campos ?? [],
         });
-        toast.success(`✓ ${f.name}`);
+        if (result.merged) {
+          toast.success(
+            result.added > 0
+              ? `↺ ${f.name} — ${result.added} novo(s) campo(s) adicionado(s)`
+              : `↺ ${f.name} — já escaneado, nada novo`,
+          );
+        } else {
+          toast.success(`✓ ${f.name}`);
+        }
       } catch (e) {
         console.error("[CRM]", e);
         toast.error(`Falha em ${f.name}`);
