@@ -1525,7 +1525,7 @@ function CrmTab() {
       }
       autoTable(doc, {
         head: [["Campo", "Valor"]],
-        body: r.campos.map((c) => [c.rotulo, c.valor]),
+        body: filterCampos(r.campos, selected).map((c) => [c.rotulo, c.valor]),
         startY: 56,
         headStyles: { fillColor: [20, 120, 150] },
         styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak" },
@@ -1585,6 +1585,27 @@ function CrmTab() {
         </div>
       </Card>
 
+      <Card className="p-4 space-y-2">
+        <p className="text-sm font-medium">Marque os campos que deseja exibir e exportar:</p>
+        <div className="flex flex-wrap gap-3">
+          {CRM_CATEGORIES.map((cat) => (
+            <label
+              key={cat.key}
+              className="flex items-center gap-2 text-sm cursor-pointer select-none px-2 py-1 rounded-md border hover:bg-accent"
+            >
+              <Checkbox
+                checked={!!selected[cat.key]}
+                onCheckedChange={() => toggleCat(cat.key)}
+              />
+              {cat.label}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Se nada estiver marcado, todos os campos aparecem.
+        </p>
+      </Card>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           {loading ? "Carregando..." : `${records.length} registro(s) no CRM`}
@@ -1620,7 +1641,12 @@ function CrmTab() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {records.map((r) => (
-            <CrmCard key={r.id} record={r} onDelete={() => removeOne(r.id)} />
+            <CrmCard
+              key={r.id}
+              record={r}
+              onDelete={() => removeOne(r.id)}
+              selected={selected}
+            />
           ))}
         </div>
       )}
