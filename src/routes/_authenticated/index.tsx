@@ -42,6 +42,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
@@ -1403,6 +1404,23 @@ const CRM_ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "app
 const CRM_SHEET_EXT = /\.(xlsx|xls|csv)$/i;
 const isSheetFile = (f: File) => CRM_SHEET_EXT.test(f.name);
 
+// Categorias de campos que o usuário pode marcar/desmarcar para exibir e exportar
+const CRM_CATEGORIES: { key: string; label: string; match: (r: string) => boolean }[] = [
+  { key: "nome", label: "Nome", match: (r) => /(nome|razão social|razao social)/i.test(r) },
+  { key: "cpf", label: "CPF", match: (r) => /\bcpf\b/i.test(r) },
+  { key: "email", label: "Email", match: (r) => /(e-?mail)/i.test(r) },
+  { key: "telefone", label: "Telefone", match: (r) => /(telefone|celular|fone|whats)/i.test(r) },
+  { key: "endereco", label: "Endereço", match: (r) => /(endere[cç]o|logradouro|rua|avenida|bairro|cidade|estado|cep|n[uú]mero)/i.test(r) },
+  { key: "profissao", label: "Profissão", match: (r) => /(profiss[aã]o|cargo|ocupa[cç][aã]o|fun[cç][aã]o)/i.test(r) },
+];
+
+function filterCampos<T extends { rotulo: string }>(campos: T[], selected: Record<string, boolean>): T[] {
+  const active = CRM_CATEGORIES.filter((c) => selected[c.key]);
+  // Se nada marcado, mostra tudo (evita tela vazia)
+  if (active.length === 0) return campos;
+  return campos.filter((c) => active.some((cat) => cat.match(c.rotulo)));
+}
+
 function CrmTab() {
   const { records, loading, syncing, addOne, removeOne, clearAll } = useCrmRecords();
   const extract = useServerFn(extractFullFromFile);
@@ -1411,6 +1429,11 @@ function CrmTab() {
   const [queueTotal, setQueueTotal] = useState(0);
   const [queueDone, setQueueDone] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(CRM_CATEGORIES.map((c) => [c.key, true])),
+  );
+  const toggleCat = (key: string) =>
+    setSelected((s) => ({ ...s, [key]: !s[key] }));
 
   const scanFiles = async (list: FileList | File[]) => {
     const arr = Array.from(list).filter((f) => CRM_ACCEPTED.includes(f.type) || isSheetFile(f));
@@ -1502,7 +1525,7 @@ function CrmTab() {
       }
       autoTable(doc, {
         head: [["Campo", "Valor"]],
-        body: r.campos.map((c) => [c.rotulo, c.valor]),
+        body: filterCampos(r.campos, selected).map((c) => [c.rotulo, c.valor]),
         startY: 56,
         headStyles: { fillColor: [20, 120, 150] },
         styles: { fontSize: 9, cellPadding: 2, overflow: "linebreak" },
@@ -1562,6 +1585,27 @@ function CrmTab() {
         </div>
       </Card>
 
+      <Card className="p-4 space-y-2">
+        <p className="text-sm font-medium">Marque os campos que deseja exibir e exportar:</p>
+        <div className="flex flex-wrap gap-3">
+          {CRM_CATEGORIES.map((cat) => (
+            <label
+              key={cat.key}
+              className="flex items-center gap-2 text-sm cursor-pointer select-none px-2 py-1 rounded-md border hover:bg-accent"
+            >
+              <Checkbox
+                checked={!!selected[cat.key]}
+                onCheckedChange={() => toggleCat(cat.key)}
+              />
+              {cat.label}
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Se nada estiver marcado, todos os campos aparecem.
+        </p>
+      </Card>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           {loading ? "Carregando..." : `${records.length} registro(s) no CRM`}
@@ -1597,7 +1641,12 @@ function CrmTab() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {records.map((r) => (
-            <CrmCard key={r.id} record={r} onDelete={() => removeOne(r.id)} />
+            <CrmCard
+              key={r.id}
+              record={r}
+              onDelete={() => removeOne(r.id)}
+              selected={selected}
+            />
           ))}
         </div>
       )}
@@ -1605,12 +1654,21 @@ function CrmTab() {
   );
 }
 
-function CrmCard({ record, onDelete }: { record: CrmRecord; onDelete: () => void }) {
+function CrmCard({
+  record,
+  onDelete,
+  selected,
+}: {
+  record: CrmRecord;
+  onDelete: () => void;
+  selected: Record<string, boolean>;
+}) {
   const [copied, setCopied] = useState(false);
+  const visibleCampos = filterCampos(record.campos, selected);
   const copyAll = async () => {
     const text = [
       record.documento_tipo ? `Tipo: ${record.documento_tipo}` : null,
-      ...record.campos.map((c) => `${c.rotulo}: ${c.valor}`),
+      ...visibleCampos.map((c) => `${c.rotulo}: ${c.valor}`),
     ]
       .filter(Boolean)
       .join("\n");
@@ -1637,10 +1695,10 @@ function CrmCard({ record, onDelete }: { record: CrmRecord; onDelete: () => void
         </Button>
       </div>
       <div className="space-y-2 max-h-80 overflow-auto pr-1">
-        {record.campos.length === 0 ? (
+        {visibleCampos.length === 0 ? (
           <p className="text-sm text-muted-foreground italic">Nenhum campo extraído.</p>
         ) : (
-          record.campos.map((c, i) => (
+          visibleCampos.map((c, i) => (
             <FieldRow key={i} label={c.rotulo} value={c.valor || "—"} />
           ))
         )}
