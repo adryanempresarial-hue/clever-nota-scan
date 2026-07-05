@@ -1398,8 +1398,10 @@ function PhonesTab({
 
 // ---------- Aba CRM (isolada) ----------
 
-const CRM_ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf";
+const CRM_ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf,.xlsx,.xls,.csv";
 const CRM_ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
+const CRM_SHEET_EXT = /\.(xlsx|xls|csv)$/i;
+const isSheetFile = (f: File) => CRM_SHEET_EXT.test(f.name);
 
 function CrmTab() {
   const { records, loading, syncing, addOne, removeOne, clearAll } = useCrmRecords();
@@ -1411,7 +1413,7 @@ function CrmTab() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const scanFiles = async (list: FileList | File[]) => {
-    const arr = Array.from(list).filter((f) => CRM_ACCEPTED.includes(f.type));
+    const arr = Array.from(list).filter((f) => CRM_ACCEPTED.includes(f.type) || isSheetFile(f));
     if (arr.length === 0) {
       toast.error("Nenhum arquivo válido");
       return;
@@ -1423,6 +1425,38 @@ function CrmTab() {
     for (const f of arr) {
       setCurrent(f.name);
       try {
+        if (isSheetFile(f)) {
+          const XLSX = await import("xlsx");
+          const buf = await f.arrayBuffer();
+          const wb = XLSX.read(buf, { type: "array" });
+          let added = 0;
+          for (const sheetName of wb.SheetNames) {
+            const ws = wb.Sheets[sheetName];
+            const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
+              defval: "",
+              raw: false,
+            });
+            for (let i = 0; i < rows.length; i++) {
+              const row = rows[i];
+              const campos = Object.entries(row)
+                .map(([rotulo, valor]) => ({
+                  rotulo: String(rotulo).trim(),
+                  valor: String(valor ?? "").trim(),
+                }))
+                .filter((c) => c.rotulo && c.valor);
+              if (campos.length === 0) continue;
+              await addOne({
+                arquivo: `${f.name} — ${sheetName} · linha ${i + 2}`,
+                documento_tipo: "Planilha",
+                campos,
+              });
+              added++;
+            }
+          }
+          if (added === 0) toast.error(`Nenhuma linha em ${f.name}`);
+          else toast.success(`✓ ${f.name} (${added} linha(s))`);
+          continue;
+        }
         const base64 = await fileToBase64(f);
         const res = await extract({
           data: { file: { name: f.name, mimeType: f.type, dataBase64: base64 } },
