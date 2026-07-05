@@ -1654,12 +1654,21 @@ function CrmTab() {
   );
 }
 
-function CrmCard({ record, onDelete }: { record: CrmRecord; onDelete: () => void }) {
+function CrmCard({
+  record,
+  onDelete,
+  selected,
+}: {
+  record: CrmRecord;
+  onDelete: () => void;
+  selected: Record<string, boolean>;
+}) {
   const [copied, setCopied] = useState(false);
+  const visibleCampos = filterCampos(record.campos, selected);
   const copyAll = async () => {
     const text = [
       record.documento_tipo ? `Tipo: ${record.documento_tipo}` : null,
-      ...record.campos.map((c) => `${c.rotulo}: ${c.valor}`),
+      ...visibleCampos.map((c) => `${c.rotulo}: ${c.valor}`),
     ]
       .filter(Boolean)
       .join("\n");
@@ -1686,10 +1695,10 @@ function CrmCard({ record, onDelete }: { record: CrmRecord; onDelete: () => void
         </Button>
       </div>
       <div className="space-y-2 max-h-80 overflow-auto pr-1">
-        {record.campos.length === 0 ? (
+        {visibleCampos.length === 0 ? (
           <p className="text-sm text-muted-foreground italic">Nenhum campo extraído.</p>
         ) : (
-          record.campos.map((c, i) => (
+          visibleCampos.map((c, i) => (
             <FieldRow key={i} label={c.rotulo} value={c.valor || "—"} />
           ))
         )}
