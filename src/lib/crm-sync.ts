@@ -105,5 +105,82 @@ export function useCrmRecords() {
     }
   }, []);
 
-  return { records, loading, syncing, addOne, removeOne, clearAll, refresh };
+  const upsertOne = useCallback(
+    async (rec: {
+      arquivo: string;
+      documento_tipo?: string | null;
+      campos: CrmField[];
+    }): Promise<{ merged: boolean; added: number }> => {
+      const id = userIdRef.current ?? (await uid());
+      if (!id) return { merged: false, added: 0 };
+      setSyncing(true);
+      try {
+        // procura registro existente com o mesmo nome de arquivo
+        const { data: existing } = await supabase
+          .from("crm_records" as never)
+          .select("*")
+          .eq("user_id", id)
+          .eq("arquivo", rec.arquivo)
+          .limit(1);
+        const row = (existing as unknown as Record<string, unknown>[] | null)?.[0];
+        if (row) {
+          const prev = mapRow(row);
+          const map = new Map<string, string>();
+          for (const c of prev.campos) {
+            const key = c.rotulo.trim().toLowerCase();
+            if (key) map.set(key, c.valor);
+          }
+          let added = 0;
+          for (const c of rec.campos) {
+            const key = c.rotulo.trim().toLowerCase();
+            if (!key) continue;
+            const cur = map.get(key) ?? "";
+            // adiciona quando novo, ou substitui quando o novo é mais completo
+            if (!cur || (c.valor && c.valor.length > cur.length)) {
+              if (!map.has(key)) added++;
+              map.set(key, c.valor || cur);
+            }
+          }
+          // preserva a ordem original e acrescenta novos rótulos no fim
+          const seen = new Set<string>();
+          const mergedCampos: CrmField[] = [];
+          for (const c of prev.campos) {
+            const key = c.rotulo.trim().toLowerCase();
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            mergedCampos.push({ rotulo: c.rotulo, valor: map.get(key) ?? c.valor });
+          }
+          for (const c of rec.campos) {
+            const key = c.rotulo.trim().toLowerCase();
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            mergedCampos.push({ rotulo: c.rotulo, valor: map.get(key) ?? c.valor });
+          }
+          await supabase
+            .from("crm_records" as never)
+            .update({
+              documento_tipo: rec.documento_tipo ?? prev.documento_tipo,
+              campos: mergedCampos,
+            } as never)
+            .eq("id", prev.id);
+          await refresh();
+          return { merged: true, added };
+        }
+        const { error } = await supabase.from("crm_records" as never).insert({
+          user_id: id,
+          arquivo: rec.arquivo,
+          documento_tipo: rec.documento_tipo ?? null,
+          campos: rec.campos,
+        } as never);
+        if (error) throw error;
+        await refresh();
+        return { merged: false, added: rec.campos.length };
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [refresh],
+  );
+
+  return { records, loading, syncing, addOne, upsertOne, removeOne, clearAll, refresh };
 }
