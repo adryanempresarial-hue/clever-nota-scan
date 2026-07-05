@@ -42,6 +42,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
