@@ -1404,6 +1404,23 @@ const CRM_ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "app
 const CRM_SHEET_EXT = /\.(xlsx|xls|csv)$/i;
 const isSheetFile = (f: File) => CRM_SHEET_EXT.test(f.name);
 
+// Categorias de campos que o usuário pode marcar/desmarcar para exibir e exportar
+const CRM_CATEGORIES: { key: string; label: string; match: (r: string) => boolean }[] = [
+  { key: "nome", label: "Nome", match: (r) => /(nome|razão social|razao social)/i.test(r) },
+  { key: "cpf", label: "CPF", match: (r) => /\bcpf\b/i.test(r) },
+  { key: "email", label: "Email", match: (r) => /(e-?mail)/i.test(r) },
+  { key: "telefone", label: "Telefone", match: (r) => /(telefone|celular|fone|whats)/i.test(r) },
+  { key: "endereco", label: "Endereço", match: (r) => /(endere[cç]o|logradouro|rua|avenida|bairro|cidade|estado|cep|n[uú]mero)/i.test(r) },
+  { key: "profissao", label: "Profissão", match: (r) => /(profiss[aã]o|cargo|ocupa[cç][aã]o|fun[cç][aã]o)/i.test(r) },
+];
+
+function filterCampos<T extends { rotulo: string }>(campos: T[], selected: Record<string, boolean>): T[] {
+  const active = CRM_CATEGORIES.filter((c) => selected[c.key]);
+  // Se nada marcado, mostra tudo (evita tela vazia)
+  if (active.length === 0) return campos;
+  return campos.filter((c) => active.some((cat) => cat.match(c.rotulo)));
+}
+
 function CrmTab() {
   const { records, loading, syncing, addOne, removeOne, clearAll } = useCrmRecords();
   const extract = useServerFn(extractFullFromFile);
@@ -1412,6 +1429,11 @@ function CrmTab() {
   const [queueTotal, setQueueTotal] = useState(0);
   const [queueDone, setQueueDone] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(CRM_CATEGORIES.map((c) => [c.key, true])),
+  );
+  const toggleCat = (key: string) =>
+    setSelected((s) => ({ ...s, [key]: !s[key] }));
 
   const scanFiles = async (list: FileList | File[]) => {
     const arr = Array.from(list).filter((f) => CRM_ACCEPTED.includes(f.type) || isSheetFile(f));
