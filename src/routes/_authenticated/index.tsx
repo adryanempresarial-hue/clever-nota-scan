@@ -1553,7 +1553,7 @@ function CrmTab() {
                 : "Arraste ou clique para escanear arquivos individualmente"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              JPG, PNG, WEBP, PDF — cada arquivo gera um registro CRM próprio.
+              JPG, PNG, WEBP, PDF — cada arquivo gera um registro. XLSX, XLS, CSV — cada linha vira um registro.
             </p>
           </div>
           {processing && (
