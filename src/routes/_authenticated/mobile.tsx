@@ -97,6 +97,8 @@ function MobileScanner() {
   const [streaming, setStreaming] = useState(false);
   const [autoScan, setAutoScan] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [tab, setTab] = useState<"scan" | "list">("scan");
+  const [showExport, setShowExport] = useState(false);
   const {
     records,
     syncing: syncingRecords,
