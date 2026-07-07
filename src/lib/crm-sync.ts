@@ -42,7 +42,8 @@ export function useCrmRecords() {
     const { data, error } = await supabase
       .from("crm_records" as never)
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(0, 999999);
     if (!error && data) setRecords((data as unknown as Record<string, unknown>[]).map(mapRow));
     setLoading(false);
   }, []);
