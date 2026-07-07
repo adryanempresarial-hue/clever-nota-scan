@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -13,7 +13,6 @@ import {
   FileSpreadsheet,
   FileType,
   FileText,
-  ArrowLeft,
   Zap,
   ZapOff,
   ShieldAlert,
@@ -21,6 +20,10 @@ import {
   RefreshCw,
   Smartphone,
   Share,
+  ScanLine,
+  List,
+  Plus,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,7 +43,11 @@ export const Route = createFileRoute("/_authenticated/mobile")({
         content:
           "Versão mobile do NOTA: aponte a câmera e os dados são extraídos automaticamente, sem precisar tirar foto.",
       },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+      },
     ],
   }),
   component: MobileScanner,
@@ -50,19 +57,16 @@ export const Route = createFileRoute("/_authenticated/mobile")({
 function MobileErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
   console.error("[NOTA mobile] route error", error);
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+    <div className="min-h-[100dvh] flex items-center justify-center p-6 bg-background">
       <div className="max-w-sm text-center space-y-4">
         <ShieldAlert className="w-10 h-10 mx-auto text-amber-500" />
         <h1 className="text-lg font-semibold">Não foi possível abrir o scanner</h1>
         <p className="text-sm text-muted-foreground">
-          Tente novamente. Se persistir, atualize a página ou volte ao desktop.
+          Tente novamente. Se persistir, feche e reabra o app.
         </p>
         <div className="flex gap-2 justify-center">
           <Button size="sm" onClick={() => reset()}>
             <RefreshCw className="w-4 h-4 mr-1.5" /> Tentar novamente
-          </Button>
-          <Button size="sm" variant="outline" asChild>
-            <Link to="/">Voltar</Link>
           </Button>
         </div>
       </div>
