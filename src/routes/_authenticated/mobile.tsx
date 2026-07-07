@@ -597,275 +597,427 @@ function MobileScanner() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div
+      className="fixed inset-0 flex flex-col bg-background text-foreground overflow-hidden select-none"
+      style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
+    >
       <Toaster richColors position="top-center" />
-      <header className="border-b bg-background/95 backdrop-blur sticky top-0 z-20">
-        <div className="px-4 py-3 flex items-center justify-between gap-3">
-          <Link
-            to="/"
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4" /> Desktop
-          </Link>
-          <div className="flex items-center gap-2 font-semibold">
-            NOTA <Sparkles className="w-4 h-4 text-primary" />
+
+      {/* iOS/Android status bar spacer + top bar */}
+      <header
+        className="shrink-0 bg-background/80 backdrop-blur-xl border-b border-border/40 z-20"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
+        <div className="px-4 h-12 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <span className="font-bold tracking-tight">NOTA</span>
           </div>
           <div className="flex items-center gap-2">
             {syncing ? (
-              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" /> sync
-              </span>
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
             ) : (
-              <span className="inline-flex items-center gap-1 text-[11px] text-primary">
-                ☁ sync
-              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px] shadow-emerald-500/60" />
             )}
-            <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-              Mobile
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+              {syncing ? "sync" : "live"}
             </span>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
-        <Card className="p-0 overflow-hidden relative bg-black aspect-[3/4] sm:aspect-video">
-          <video
-            ref={videoRef}
+      {/* MAIN CONTENT — swappable via bottom tabs */}
+      <main className="flex-1 relative overflow-hidden">
+        {tab === "scan" ? (
+          <div className="absolute inset-0 bg-black">
+            <video
+              ref={videoRef}
               autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-          <canvas ref={canvasRef} className="hidden" />
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+            <canvas ref={canvasRef} className="hidden" />
 
-          {/* Frame overlay */}
-          {streaming && (
-            <>
-              <div className="pointer-events-none absolute inset-6 border-2 border-white/70 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
-              <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-                <span
-                  className={`text-xs px-2 py-1 rounded-full backdrop-blur ${
-                    processing
-                      ? "bg-primary/80 text-primary-foreground"
-                      : "bg-black/60 text-white"
-                  }`}
-                >
-                  {processing ? (
-                    <span className="flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin" /> {status}
-                    </span>
-                  ) : (
-                    status
+            {/* Scanner viewfinder + status */}
+            {streaming && (
+              <>
+                <div className="pointer-events-none absolute inset-x-6 top-16 bottom-40 rounded-3xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
+                  {/* corner brackets */}
+                  <span className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-3xl" />
+                  <span className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-3xl" />
+                  <span className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-4 border-l-4 border-primary rounded-bl-3xl" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-3xl" />
+                  {autoScan && (
+                    <span className="absolute left-2 right-2 top-1/2 h-0.5 bg-primary/80 shadow-[0_0_12px] shadow-primary animate-pulse" />
                   )}
-                </span>
-                {torchSupported && (
-                  <button
-                    onClick={toggleTorch}
-                    className="p-2 rounded-full bg-black/60 text-white backdrop-blur"
-                    aria-label="Lanterna"
+                </div>
+
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
+                  <span
+                    className={`text-[11px] font-medium px-2.5 py-1 rounded-full backdrop-blur ${
+                      processing
+                        ? "bg-primary/90 text-primary-foreground"
+                        : "bg-black/55 text-white"
+                    }`}
                   >
-                    {torchOn ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4" />}
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-
-          {!streaming && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/85 text-sm p-6 text-center">
-              {permissionState === "denied" || permissionState === "unavailable" ? (
-                <PermissionHelp
-                  state={permissionState}
-                  message={permissionError}
-                  onRetry={startCamera}
-                  inIframe={inIframe}
-                  publishedUrl={PUBLISHED_URL}
-                />
-              ) : permissionState === "requesting" ? (
-                <>
-                  <Loader2 className="w-10 h-10 animate-spin opacity-80" />
-                  <p>Solicitando acesso à câmera...</p>
-                  <p className="text-xs text-white/60">
-                    Toque em "Permitir" no aviso do navegador.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Camera className="w-12 h-12 opacity-70" />
-                  <p>
-                    Toque em iniciar para abrir a câmera
-                  </p>
-                </>
-              )}
-            </div>
-          )}
-        </Card>
-
-        {!installed && (
-          <Card className="p-3 flex items-center gap-3 border-primary/30 bg-primary/5">
-            <div className="w-10 h-10 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
-              <Smartphone className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium">Instalar o app NOTA</div>
-              <p className="text-xs text-muted-foreground">
-                Adicione à tela inicial para abrir como um aplicativo.
-              </p>
-            </div>
-            <Button size="sm" onClick={handleInstall}>
-              {isIos ? (
-                <>
-                  <Share className="w-4 h-4 mr-1" /> Como?
-                </>
-              ) : (
-                <>
-                  <Smartphone className="w-4 h-4 mr-1" /> Instalar
-                </>
-              )}
-            </Button>
-          </Card>
-        )}
-
-        {showIosHelp && (
-          <Card className="p-4 space-y-2 text-sm">
-            <div className="font-semibold flex items-center gap-2">
-              <Share className="w-4 h-4" /> Instalar no iPhone / iPad
-            </div>
-            <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-              <li>Toque no botão Compartilhar do Safari.</li>
-              <li>Escolha "Adicionar à Tela de Início".</li>
-              <li>Confirme em "Adicionar". O NOTA aparecerá como app.</li>
-            </ol>
-            <Button size="sm" variant="ghost" onClick={() => setShowIosHelp(false)}>
-              Fechar
-            </Button>
-          </Card>
-        )}
-
-        {showInstallHelp && (
-          <Card className="p-4 space-y-3 text-sm">
-            <div className="font-semibold flex items-center gap-2">
-              <Smartphone className="w-4 h-4" /> Como instalar o app
-            </div>
-            {inIframe && (
-              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-2">
-                <p className="font-medium">
-                  Você está vendo o app dentro do editor. Para instalar, abra o app em uma aba própria:
-                </p>
-                <Button asChild size="sm" variant="default">
-                  <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
-                    Abrir app em nova aba
-                  </a>
-                </Button>
-              </div>
-            )}
-            <div>
-              <div className="font-medium mb-1">
-                {isAndroid ? "Android / Chrome:" : "Chrome / Edge no computador:"}
-              </div>
-              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-                <li>Abra o menu do navegador (⋮).</li>
-                <li>
-                  Toque em{" "}
-                  <span className="font-medium">
-                    {isAndroid ? "Adicionar à tela inicial" : "Instalar aplicativo"}
+                    {processing ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" /> {status}
+                      </span>
+                    ) : (
+                      status
+                    )}
                   </span>
-                  .
-                </li>
-                <li>Confirme. O NOTA abre como app independente.</li>
-              </ol>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Dica: se a opção não aparecer, recarregue a página depois de carregar tudo uma vez.
-            </p>
-            <Button size="sm" variant="ghost" onClick={() => setShowInstallHelp(false)}>
-              Fechar
-            </Button>
-          </Card>
-        )}
+                  {torchSupported && (
+                    <button
+                      onClick={toggleTorch}
+                      className="pointer-events-auto p-2.5 rounded-full bg-black/55 text-white backdrop-blur active:scale-95 transition"
+                      aria-label="Lanterna"
+                    >
+                      {torchOn ? <Zap className="w-4 h-4" /> : <ZapOff className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
 
-        <div className="flex items-center gap-3">
-          {!streaming ? (
-            <Button onClick={startCamera} className="flex-1" size="lg">
-              <Camera className="w-4 h-4 mr-2" /> Iniciar câmera
-            </Button>
-          ) : (
-            <>
-              <Button onClick={stopCamera} variant="outline" size="lg">
-                <CameraOff className="w-4 h-4" />
-              </Button>
-              <Button onClick={scanNow} disabled={processing} className="flex-1" size="lg">
-                {processing ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {/* Auto scan toggle chip */}
+                <div className="absolute left-1/2 -translate-x-1/2 top-16 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur text-white text-xs">
+                  <Label htmlFor="auto" className="text-xs cursor-pointer">
+                    Auto
+                  </Label>
+                  <Switch id="auto" checked={autoScan} onCheckedChange={setAutoScan} />
+                </div>
+              </>
+            )}
+
+            {/* Camera placeholder / permission states */}
+            {!streaming && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-white/85 text-sm p-8 text-center bg-black">
+                {permissionState === "denied" || permissionState === "unavailable" ? (
+                  <PermissionHelp
+                    state={permissionState}
+                    message={permissionError}
+                    onRetry={startCamera}
+                    inIframe={inIframe}
+                    publishedUrl={PUBLISHED_URL}
+                  />
+                ) : permissionState === "requesting" ? (
+                  <>
+                    <Loader2 className="w-10 h-10 animate-spin opacity-80" />
+                    <p>Solicitando acesso à câmera...</p>
+                    <p className="text-xs text-white/60">
+                      Toque em "Permitir" no aviso do navegador.
+                    </p>
+                  </>
                 ) : (
-                  <Sparkles className="w-4 h-4 mr-2" />
+                  <>
+                    <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center">
+                      <Camera className="w-10 h-10 opacity-90" />
+                    </div>
+                    <p className="text-base font-medium">Scanner NOTA</p>
+                    <p className="text-xs text-white/70 max-w-[240px]">
+                      Aponte a câmera para um documento e o app extrai os dados automaticamente.
+                    </p>
+                    <Button
+                      onClick={startCamera}
+                      size="lg"
+                      className="rounded-full px-6 h-11 shadow-lg shadow-primary/40"
+                    >
+                      <Camera className="w-4 h-4 mr-2" /> Iniciar câmera
+                    </Button>
+                  </>
                 )}
-                Capturar agora
-              </Button>
-            </>
-          )}
-        </div>
+              </div>
+            )}
 
-        {streaming && (
-          <div className="flex items-center justify-between rounded-md border px-3 py-2 bg-muted/30">
-            <Label htmlFor="auto" className="text-sm">
-              Captura automática
-            </Label>
-            <Switch id="auto" checked={autoScan} onCheckedChange={setAutoScan} />
+            {/* Floating shutter + controls */}
+            {streaming && (
+              <div className="absolute inset-x-0 bottom-6 flex items-center justify-center gap-6 pointer-events-none">
+                <button
+                  onClick={stopCamera}
+                  className="pointer-events-auto w-12 h-12 rounded-full bg-black/60 backdrop-blur text-white flex items-center justify-center active:scale-90 transition"
+                  aria-label="Pausar câmera"
+                >
+                  <CameraOff className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={scanNow}
+                  disabled={processing}
+                  className="pointer-events-auto relative w-20 h-20 rounded-full bg-white flex items-center justify-center active:scale-95 transition disabled:opacity-70 shadow-2xl"
+                  aria-label="Capturar"
+                >
+                  <span className="absolute inset-1.5 rounded-full border-4 border-primary" />
+                  {processing ? (
+                    <Loader2 className="w-7 h-7 animate-spin text-primary" />
+                  ) : (
+                    <span className="w-14 h-14 rounded-full bg-primary" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setTab("list")}
+                  className="pointer-events-auto relative w-12 h-12 rounded-full bg-black/60 backdrop-blur text-white flex items-center justify-center active:scale-90 transition"
+                  aria-label="Registros"
+                >
+                  <List className="w-5 h-5" />
+                  {records.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                      {records.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="absolute inset-0 overflow-y-auto overscroll-contain">
+            <div className="px-4 pt-4 pb-32 space-y-4">
+              {!installed && (
+                <button
+                  onClick={handleInstall}
+                  className="w-full flex items-center gap-3 p-3 rounded-2xl border border-primary/30 bg-primary/5 text-left active:scale-[0.99] transition"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold">Instalar como app</div>
+                    <p className="text-xs text-muted-foreground">
+                      {isIos
+                        ? "Toque aqui para ver como adicionar à tela inicial."
+                        : "Adicione à tela inicial para abrir sem o navegador."}
+                    </p>
+                  </div>
+                  {isIos ? (
+                    <Share className="w-4 h-4 text-primary shrink-0" />
+                  ) : (
+                    <Plus className="w-4 h-4 text-primary shrink-0" />
+                  )}
+                </button>
+              )}
+
+              {showIosHelp && (
+                <Card className="p-4 rounded-2xl space-y-2 text-sm">
+                  <div className="font-semibold flex items-center gap-2">
+                    <Share className="w-4 h-4" /> Instalar no iPhone / iPad
+                  </div>
+                  <ol className="list-decimal pl-5 space-y-1 text-muted-foreground text-xs">
+                    <li>Toque no botão Compartilhar do Safari.</li>
+                    <li>Escolha "Adicionar à Tela de Início".</li>
+                    <li>Confirme em "Adicionar". O NOTA aparecerá como app.</li>
+                  </ol>
+                  <Button size="sm" variant="ghost" onClick={() => setShowIosHelp(false)}>
+                    Fechar
+                  </Button>
+                </Card>
+              )}
+
+              {showInstallHelp && (
+                <Card className="p-4 rounded-2xl space-y-3 text-sm">
+                  <div className="font-semibold flex items-center gap-2">
+                    <Smartphone className="w-4 h-4" /> Como instalar o app
+                  </div>
+                  {inIframe && (
+                    <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                      <p>Abra o app em uma aba própria para poder instalar:</p>
+                      <Button asChild size="sm">
+                        <a href={PUBLISHED_URL} target="_blank" rel="noreferrer">
+                          Abrir em nova aba
+                        </a>
+                      </Button>
+                    </div>
+                  )}
+                  <ol className="list-decimal pl-5 space-y-1 text-muted-foreground text-xs">
+                    <li>Abra o menu do navegador (⋮).</li>
+                    <li>
+                      Toque em{" "}
+                      <span className="font-medium">
+                        {isAndroid ? "Adicionar à tela inicial" : "Instalar aplicativo"}
+                      </span>
+                      .
+                    </li>
+                    <li>Confirme. O NOTA abre como app independente.</li>
+                  </ol>
+                  <Button size="sm" variant="ghost" onClick={() => setShowInstallHelp(false)}>
+                    Fechar
+                  </Button>
+                </Card>
+              )}
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold">Capturados</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {records.length} {records.length === 1 ? "registro" : "registros"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {records.length > 0 && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full h-9"
+                        onClick={() => setShowExport(true)}
+                      >
+                        <Download className="w-4 h-4 mr-1" /> Exportar
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="rounded-full"
+                        onClick={() => {
+                          if (confirm("Limpar todos os registros?")) clearAll();
+                        }}
+                        aria-label="Limpar tudo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {records.map((r) => (
+                  <MobileRecord
+                    key={r._id ?? r._arquivo}
+                    record={r}
+                    onDelete={() => removeOne(r._id)}
+                  />
+                ))}
+                {records.length === 0 && (
+                  <div className="mt-16 flex flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+                    <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                      <ScanLine className="w-8 h-8 opacity-60" />
+                    </div>
+                    <p className="text-sm">Nenhum documento capturado ainda.</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => setTab("scan")}
+                    >
+                      <Camera className="w-4 h-4 mr-1.5" /> Abrir scanner
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
-
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold">
-              Capturados ({records.length})
-            </h2>
-            {records.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  if (confirm("Limpar todos os registros?")) {
-                    clearAll();
-                  }
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-
-          {records.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              <Button size="sm" variant="outline" onClick={exportDocx}>
-                <FileType className="w-4 h-4 mr-1" /> Word
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => exportXlsx(false)}>
-                <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
-              </Button>
-              <Button size="sm" variant="outline" onClick={exportPdf}>
-                <FileText className="w-4 h-4 mr-1" /> PDF
-              </Button>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {records.map((r) => (
-              <MobileRecord
-                key={r._id ?? r._arquivo}
-                record={r}
-                onDelete={() => removeOne(r._id)}
-              />
-            ))}
-            {records.length === 0 && (
-              <Card className="p-8 text-center text-muted-foreground text-sm">
-                Nenhum documento capturado ainda.
-              </Card>
-            )}
-          </div>
-        </section>
       </main>
+
+      {/* Export bottom sheet */}
+      {showExport && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setShowExport(false)}
+        >
+          <div
+            className="absolute bottom-0 inset-x-0 bg-background rounded-t-3xl p-5 space-y-3 animate-in slide-in-from-bottom"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.25rem)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto w-10 h-1 rounded-full bg-muted-foreground/30" />
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base">Exportar registros</h3>
+              <button
+                onClick={() => setShowExport(false)}
+                className="p-1.5 rounded-full active:bg-muted"
+                aria-label="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <SheetAction icon={FileType} label="Word" onClick={() => { exportDocx(); setShowExport(false); }} />
+              <SheetAction icon={FileSpreadsheet} label="Excel" onClick={() => { exportXlsx(false); setShowExport(false); }} />
+              <SheetAction icon={FileText} label="PDF" onClick={() => { exportPdf(); setShowExport(false); }} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom tab bar */}
+      <nav
+        className="shrink-0 border-t border-border/60 bg-background/90 backdrop-blur-xl"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="grid grid-cols-2 h-16">
+          <TabButton
+            active={tab === "scan"}
+            icon={ScanLine}
+            label="Scanner"
+            onClick={() => setTab("scan")}
+          />
+          <TabButton
+            active={tab === "list"}
+            icon={List}
+            label="Registros"
+            badge={records.length}
+            onClick={() => setTab("list")}
+          />
+        </div>
+      </nav>
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  icon: Icon,
+  label,
+  badge,
+  onClick,
+}: {
+  active: boolean;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  badge?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex flex-col items-center justify-center gap-0.5 transition active:scale-95 ${
+        active ? "text-primary" : "text-muted-foreground"
+      }`}
+    >
+      <div className="relative">
+        <Icon className={`w-6 h-6 ${active ? "" : "opacity-80"}`} />
+        {badge !== undefined && badge > 0 && (
+          <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+            {badge}
+          </span>
+        )}
+      </div>
+      <span className={`text-[10px] font-medium ${active ? "" : "opacity-70"}`}>{label}</span>
+      {active && <span className="absolute top-0 w-8 h-0.5 rounded-b-full bg-primary" />}
+    </button>
+  );
+}
+
+function SheetAction({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border border-border bg-card active:scale-95 transition"
+    >
+      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+        <Icon className="w-5 h-5" />
+      </div>
+      <span className="text-xs font-medium">{label}</span>
+    </button>
   );
 }
 
