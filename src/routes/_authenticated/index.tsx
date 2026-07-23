@@ -787,7 +787,10 @@ function QuickSnippets({
         source: "CRM",
         title: nome || "(sem nome)",
         subtitle: r.arquivo || "",
-        lines: r.campos.filter((c) => c.valor).slice(0, 8),
+        lines: r.campos
+          .filter((c) => c.valor)
+          .slice(0, 8)
+          .map((c) => ({ label: c.rotulo, value: c.valor })),
       });
     }
     return results.slice(0, 20);
@@ -912,13 +915,10 @@ function QuickSnippets({
                         className="flex items-center justify-between gap-2 text-xs"
                       >
                         <div className="min-w-0">
-                          <span className="text-muted-foreground">{l.rotulo ?? l.label}:</span>{" "}
-                          <span className="font-medium break-words">{l.valor ?? l.value}</span>
+                          <span className="text-muted-foreground">{l.label}:</span>{" "}
+                          <span className="font-medium break-words">{l.value}</span>
                         </div>
-                        <CopyButton
-                          value={(l.valor ?? l.value) as string}
-                          label={(l.rotulo ?? l.label) as string}
-                        />
+                        <CopyButton value={l.value} label={l.label} />
                       </div>
                     ))}
                   </div>
