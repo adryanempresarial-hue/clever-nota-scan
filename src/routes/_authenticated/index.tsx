@@ -1558,7 +1558,7 @@ function filterCampos<T extends { rotulo: string }>(campos: T[], selected: Recor
 }
 
 function CrmTab() {
-  const { records, loading, syncing, addOne, upsertOne, removeOne, clearAll } = useCrmRecords();
+  const { records, total, loading, syncing, addOne, upsertOne, removeOne, clearAll } = useCrmRecords();
   const extract = useServerFn(extractFullFromFile);
   const [processing, setProcessing] = useState(false);
   const [current, setCurrent] = useState<string>("");
@@ -1752,7 +1752,7 @@ function CrmTab() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
-          {loading ? "Carregando..." : `${records.length} registro(s) no CRM`}
+          {loading ? "Carregando..." : `${total} registro(s) no CRM`}
           {syncing && (
             <Loader2 className="inline w-3.5 h-3.5 ml-2 animate-spin text-muted-foreground" />
           )}

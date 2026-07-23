@@ -30,6 +30,7 @@ export function useCrmRecords() {
   const [records, setRecords] = useState<CrmRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [total, setTotal] = useState(0);
   const userIdRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -39,12 +40,30 @@ export function useCrmRecords() {
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from("crm_records" as never)
-      .select("*")
-      .order("created_at", { ascending: false })
-      .range(0, 999999);
-    if (!error && data) setRecords((data as unknown as Record<string, unknown>[]).map(mapRow));
+    // PostgREST caps rows per request (~1000). Paginate to load everything
+    // and always update the counter from an exact server-side count.
+    const PAGE = 1000;
+    const all: Record<string, unknown>[] = [];
+    let from = 0;
+    let count: number | null = null;
+    // First page also asks for exact count
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const q = supabase
+        .from("crm_records" as never)
+        .select("*", from === 0 ? { count: "exact" } : {})
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      const { data, error, count: c } = await q;
+      if (error || !data) break;
+      if (from === 0 && typeof c === "number") count = c;
+      all.push(...(data as unknown as Record<string, unknown>[]));
+      if (data.length < PAGE) break;
+      from += PAGE;
+      if (from > 1_000_000) break;
+    }
+    setRecords(all.map(mapRow));
+    setTotal(count ?? all.length);
     setLoading(false);
   }, []);
 
@@ -183,5 +202,5 @@ export function useCrmRecords() {
     [refresh],
   );
 
-  return { records, loading, syncing, addOne, upsertOne, removeOne, clearAll, refresh };
+  return { records, total, loading, syncing, addOne, upsertOne, removeOne, clearAll, refresh };
 }
