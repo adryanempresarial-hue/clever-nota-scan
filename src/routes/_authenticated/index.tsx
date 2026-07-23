@@ -26,6 +26,7 @@ import {
   Phone,
   Users,
   ScanLine,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -335,7 +336,7 @@ function NotaTool() {
           </TabsList>
 
           <TabsContent value="processar" className="space-y-6">
-            <QuickSnippets />
+            <QuickSnippets notaRecords={records} />
             <Card
               className="p-8 border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer"
               onDragOver={(e) => e.preventDefault()}
