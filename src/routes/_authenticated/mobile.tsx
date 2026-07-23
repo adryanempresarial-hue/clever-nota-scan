@@ -95,7 +95,7 @@ function MobileScanner() {
   const lastSentAtRef = useRef(0);
 
   const [streaming, setStreaming] = useState(false);
-  const [autoScan, setAutoScan] = useState(false);
+  const [autoScan, setAutoScan] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [tab, setTab] = useState<"scan" | "list">("scan");
   const [showExport, setShowExport] = useState(false);
@@ -417,8 +417,13 @@ function MobileScanner() {
     });
   };
 
+  const recordsRef = useRef(records);
+  useEffect(() => {
+    recordsRef.current = records;
+  }, [records]);
+
   const isDuplicate = (rec: NotaRecord) => {
-    return records.some(
+    return recordsRef.current.some(
       (r) =>
         (rec.cpf && r.cpf && r.cpf === rec.cpf) ||
         (rec.nome && r.nome && r.nome.toLowerCase() === rec.nome.toLowerCase() && r.email === rec.email),
@@ -461,8 +466,8 @@ function MobileScanner() {
       await addOne(rec);
       setStatus(`✓ ${rec.nome ?? "Documento"} capturado`);
       toast.success(`Capturado: ${rec.nome ?? "documento"}`);
-      // Force a cooldown after a save
-      lastSentAtRef.current = Date.now() + 1500;
+      // Small cooldown after a save so the same page isn't re-read instantly
+      lastSentAtRef.current = Date.now() + 800;
     } catch (e) {
       console.error(e);
       setStatus("Falha na leitura");
@@ -472,7 +477,7 @@ function MobileScanner() {
     }
   };
 
-  // Auto-scan loop: checks frame stability ~3x/sec
+  // Auto-scan loop: checks frame stability ~5x/sec for faster, more accurate capture
   useEffect(() => {
     if (!streaming || !autoScan) return;
     const id = window.setInterval(() => {
@@ -484,22 +489,22 @@ function MobileScanner() {
       prevHashRef.current = h;
       if (!prev) return;
       const diff = hashDiff(h, prev);
-      if (diff < 1.2) {
+      if (diff < 1.6) {
         stableCountRef.current += 1;
       } else {
         stableCountRef.current = 0;
       }
       const variance =
         h.reduce((acc, v, i, arr) => acc + Math.abs(v - arr[Math.max(0, i - 1)]!), 0) / h.length;
-      if (stableCountRef.current >= 3 && variance > 1.5) {
+      if (stableCountRef.current >= 2 && variance > 1.2) {
         stableCountRef.current = 0;
-        lastSentAtRef.current = Date.now() + 3000;
+        lastSentAtRef.current = Date.now() + 1500;
         scanNow();
       }
-    }, 700);
+    }, 200);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streaming, autoScan, records]);
+  }, [streaming, autoScan]);
 
   const allEmails = useMemo(() => {
     const s = new Set<string>();
