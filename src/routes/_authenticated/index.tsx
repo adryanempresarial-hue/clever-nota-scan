@@ -26,6 +26,7 @@ import {
   Phone,
   Users,
   ScanLine,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -335,7 +336,7 @@ function NotaTool() {
           </TabsList>
 
           <TabsContent value="processar" className="space-y-6">
-            <QuickSnippets />
+            <QuickSnippets notaRecords={records} />
             <Card
               className="p-8 border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer"
               onDragOver={(e) => e.preventDefault()}
@@ -720,10 +721,80 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
   );
 }
 
-function QuickSnippets() {
+function QuickSnippets({
+  notaRecords,
+}: {
+  notaRecords: (NotaRecord & { _id?: string; _createdAt?: string })[];
+}) {
   const [message, setMessage] = useState(DEFAULT_MESSAGE);
   const [editing, setEditing] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { records: crmRecords } = useCrmRecords();
+  const [query, setQuery] = useState("");
+
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  const digits = (s: string) => s.replace(/\D+/g, "");
+
+  type SearchHit = {
+    key: string;
+    source: "Nota" | "CRM";
+    title: string;
+    subtitle: string;
+    lines: { label: string; value: string }[];
+  };
+
+  const hits = useMemo<SearchHit[]>(() => {
+    const q = query.trim();
+    if (q.length < 2) return [];
+    const qn = normalize(q);
+    const qd = digits(q);
+    const results: SearchHit[] = [];
+    for (const r of notaRecords) {
+      const nome = r.nome || "";
+      const cpf = r.cpf || "";
+      const matchName = nome && normalize(nome).includes(qn);
+      const matchCpf = qd.length >= 3 && cpf && digits(cpf).includes(qd);
+      if (!matchName && !matchCpf) continue;
+      results.push({
+        key: `nota-${r._id ?? nome + cpf}`,
+        source: "Nota",
+        title: nome || "(sem nome)",
+        subtitle: r._arquivo || "",
+        lines: [
+          { label: "Nome", value: nome },
+          { label: "CPF", value: cpf },
+          { label: "Telefone", value: r.telefone || "" },
+          { label: "E-mail", value: r.email || "" },
+          { label: "CEP", value: r.cep || "" },
+          { label: "Número", value: r.numero || "" },
+        ].filter((l) => l.value),
+      });
+    }
+    for (const r of crmRecords) {
+      const nomeField = r.campos.find((c) => /nome|raz[aã]o/i.test(c.rotulo));
+      const cpfField = r.campos.find((c) => /cpf|cnpj/i.test(c.rotulo));
+      const nome = nomeField?.valor ?? "";
+      const cpf = cpfField?.valor ?? "";
+      const matchName = nome && normalize(nome).includes(qn);
+      const matchCpf = qd.length >= 3 && cpf && digits(cpf).includes(qd);
+      if (!matchName && !matchCpf) continue;
+      results.push({
+        key: `crm-${r.id}`,
+        source: "CRM",
+        title: nome || "(sem nome)",
+        subtitle: r.arquivo || "",
+        lines: r.campos
+          .filter((c) => c.valor)
+          .slice(0, 8)
+          .map((c) => ({ label: c.rotulo, value: c.valor })),
+      });
+    }
+    return results.slice(0, 20);
+  }, [query, notaRecords, crmRecords]);
 
   useEffect(() => {
     setMounted(true);
@@ -791,6 +862,71 @@ function QuickSnippets() {
           </Button>
           <CopyButton value={message} label="mensagem" />
         </div>
+      </div>
+      <div className="space-y-2">
+        <div className="text-xs text-muted-foreground">
+          Localizar já escaneados (nome ou CPF)
+        </div>
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Digite nome ou CPF..."
+            className="pl-8"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Limpar busca"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {query.trim().length >= 2 && (
+          <div className="rounded-md border bg-muted/20 max-h-80 overflow-auto divide-y">
+            {hits.length === 0 ? (
+              <div className="p-3 text-sm text-muted-foreground">
+                Nenhum registro encontrado.
+              </div>
+            ) : (
+              hits.map((h) => (
+                <div key={h.key} className="p-3 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{h.title}</div>
+                      {h.subtitle && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {h.subtitle}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary rounded px-1.5 py-0.5 shrink-0">
+                      {h.source}
+                    </span>
+                  </div>
+                  <div className="grid gap-1">
+                    {h.lines.map((l, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="text-muted-foreground">{l.label}:</span>{" "}
+                          <span className="font-medium break-words">{l.value}</span>
+                        </div>
+                        <CopyButton value={l.value} label={l.label} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
