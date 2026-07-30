@@ -71,7 +71,9 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 const ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
-const ACCEPT_ATTR = ".jpg,.jpeg,.png,.webp,.pdf";
+const ACCEPT_ATTR = ".jpg,.jpeg,.png,.webp,.pdf,.xlsx,.xls,.csv,.ods";
+const SHEET_EXT = /\.(xlsx|xls|xlsm|csv|ods)$/i;
+const isSheet = (f: File) => SHEET_EXT.test(f.name);
 const MAX_FILES = 10;
 
 // Ordem FIXA de campos extraídos e exibidos em todos os documentos
