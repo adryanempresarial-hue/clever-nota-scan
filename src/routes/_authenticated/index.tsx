@@ -1366,6 +1366,7 @@ function EmailsTab({
   const [generating, setGenerating] = useState(false);
   const [title, setTitle] = useState<string>("D4S · NOTA — E-mails");
   const [subtitle, setSubtitle] = useState<string>("");
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
 
   const entries = useMemo<EmailEntry[]>(() => {
     return records
@@ -1383,8 +1384,9 @@ function EmailsTab({
     const end = to ? new Date(`${to}T23:59:59.999`) : null;
     return entries
       .filter((e) => (start ? e.date >= start : true) && (end ? e.date <= end : true))
+      .filter((e) => !removed.has(e.email.toLowerCase()))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [entries, from, to]);
+  }, [entries, from, to, removed]);
 
   const copyAll = async () => {
     if (filtered.length === 0) return toast.error("Nenhum e-mail no período");
@@ -1532,6 +1534,11 @@ function EmailsTab({
           <Button variant="outline" size="sm" onClick={copyAll} disabled={filtered.length === 0}>
             <Copy className="w-4 h-4 mr-2" /> Copiar todos
           </Button>
+          {removed.size > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setRemoved(new Set())}>
+              Restaurar removidos ({removed.size})
+            </Button>
+          )}
           <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
             {generating ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1560,6 +1567,16 @@ function EmailsTab({
                 </div>
               </div>
               <CopyButton value={e.email} label="e-mail" />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Remover e-mail da lista"
+                onClick={() =>
+                  setRemoved((prev) => new Set(prev).add(e.email.toLowerCase()))
+                }
+              >
+                <X className="w-4 h-4 text-destructive" />
+              </Button>
             </div>
           ))}
         </Card>
@@ -1585,6 +1602,7 @@ function PhonesTab({
   const [generating, setGenerating] = useState(false);
   const [title, setTitle] = useState<string>("D4S · NOTA — Números");
   const [subtitle, setSubtitle] = useState<string>("");
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
 
   const entries = useMemo<PhoneEntry[]>(() => {
     return records
@@ -1602,8 +1620,9 @@ function PhonesTab({
     const end = to ? new Date(`${to}T23:59:59.999`) : null;
     return entries
       .filter((e) => (start ? e.date >= start : true) && (end ? e.date <= end : true))
+      .filter((e) => !removed.has(e.telefone.replace(/\D+/g, "")))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [entries, from, to]);
+  }, [entries, from, to, removed]);
 
   const copyAll = async () => {
     if (filtered.length === 0) return toast.error("Nenhum número no período");
@@ -1747,6 +1766,11 @@ function PhonesTab({
           <Button variant="outline" size="sm" onClick={copyAll} disabled={filtered.length === 0}>
             <Copy className="w-4 h-4 mr-2" /> Copiar todos
           </Button>
+          {removed.size > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setRemoved(new Set())}>
+              Restaurar removidos ({removed.size})
+            </Button>
+          )}
           <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
             {generating ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1775,6 +1799,16 @@ function PhonesTab({
                 </div>
               </div>
               <CopyButton value={e.telefone} label="telefone" />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Remover número da lista"
+                onClick={() =>
+                  setRemoved((prev) => new Set(prev).add(e.telefone.replace(/\D+/g, "")))
+                }
+              >
+                <X className="w-4 h-4 text-destructive" />
+              </Button>
             </div>
           ))}
         </Card>
