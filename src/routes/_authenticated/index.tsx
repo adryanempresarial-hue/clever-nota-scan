@@ -165,6 +165,27 @@ function nextVersionedName(base: string, ext: ExportKind, existing: { name: stri
   return `${base}_${String(next).padStart(3, "0")}.${ext}`;
 }
 
+/** Número do apartamento (HUB): 21 → 612; 200 sempre por último. */
+function apartmentNumber(r: NotaRecord): number | null {
+  const raw = String(r.numero ?? "").match(/\d+/);
+  if (!raw) return null;
+  const n = parseInt(raw[0], 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function sortByApartment<T extends NotaRecord>(list: T[]): T[] {
+  return [...list].sort((a, b) => {
+    const na = apartmentNumber(a);
+    const nb = apartmentNumber(b);
+    const rank = (n: number | null) => (n === 200 ? 2 : n === null ? 1 : 0);
+    const ra = rank(na);
+    const rb = rank(nb);
+    if (ra !== rb) return ra - rb;
+    if (ra !== 0) return 0;
+    return (na as number) - (nb as number);
+  });
+}
+
 function NotaTool() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
@@ -173,13 +194,15 @@ function NotaTool() {
   const [autoProcess, setAutoProcess] = useState(true);
   const pendingAutoRef = useRef(false);
   const {
-    records,
+    records: rawRecords,
     loading: loadingRecords,
     syncing: syncingRecords,
     addMany,
     removeOne,
     clearAll,
   } = useCloudRecords();
+  // Ordena por número do apartamento (HUB): 21 → 612, e o 200 sempre por último
+  const records = useMemo(() => sortByApartment(rawRecords), [rawRecords]);
   const {
     files: cloudFiles,
     loading: loadingFiles,
