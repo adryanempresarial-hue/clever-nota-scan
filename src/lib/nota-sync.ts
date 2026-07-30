@@ -62,6 +62,53 @@ function toInsert(r: NotaRecord, user_id: string) {
   };
 }
 
+const FIELDS = [
+  "nome","cpf","cnpj","email","telefone","cep","endereco","numero",
+  "bairro","cidade","estado","notaFiscal","data","valor",
+] as const;
+
+const norm = (v?: string | null) =>
+  (v ?? "").toString().replace(/\s+/g, " ").trim().toLowerCase();
+const digits = (v?: string | null) => (v ?? "").replace(/\D+/g, "");
+
+// duas fichas são "a mesma pessoa/documento" quando batem por um
+// identificador forte, ou pelo mesmo nome de arquivo
+function isSameEntity(a: CloudRecord, b: NotaRecord) {
+  if (digits(a.cpf) && digits(a.cpf) === digits(b.cpf)) return true;
+  if (digits(a.cnpj) && digits(a.cnpj) === digits(b.cnpj)) return true;
+  if (norm(a.email) && norm(a.email) === norm(b.email)) return true;
+  if (digits(a.telefone) && digits(a.telefone) === digits(b.telefone)) return true;
+  if (norm(a._arquivo) && norm(a._arquivo) === norm(b._arquivo)) return true;
+  if (
+    norm(a.nome) &&
+    norm(a.nome) === norm(b.nome) &&
+    (digits(a.cep) === digits(b.cep) || !digits(a.cep) || !digits(b.cep))
+  )
+    return true;
+  return false;
+}
+
+// mantém o valor mais completo de cada campo
+function mergeRecords(oldR: CloudRecord, newR: NotaRecord): NotaRecord {
+  const out: Record<string, unknown> = { ...oldR };
+  for (const f of FIELDS) {
+    const cur = (oldR as Record<string, unknown>)[f] as string | null | undefined;
+    const nxt = (newR as Record<string, unknown>)[f] as string | null | undefined;
+    if (!norm(nxt)) continue;
+    if (!norm(cur) || (nxt ?? "").trim().length > (cur ?? "").trim().length) out[f] = nxt;
+  }
+  out._arquivo = newR._arquivo || oldR._arquivo;
+  return out as NotaRecord;
+}
+
+function isMoreComplete(oldR: CloudRecord, merged: NotaRecord) {
+  return FIELDS.some(
+    (f) =>
+      norm((merged as Record<string, unknown>)[f] as string) !==
+      norm((oldR as Record<string, unknown>)[f] as string),
+  );
+}
+
 export function useCloudRecords() {
   const [records, setRecords] = useState<CloudRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,20 +145,54 @@ export function useCloudRecords() {
     };
   }, [refresh]);
 
-  const addMany = useCallback(async (recs: NotaRecord[]) => {
-    const id = userIdRef.current ?? (await uid());
-    if (!id || recs.length === 0) return;
-    setSyncing(true);
-    try {
-      const { error } = await supabase
-        .from("nota_records")
-        .insert(recs.map((r) => toInsert(r, id)));
-      if (error) throw error;
-      await refresh();
-    } finally {
-      setSyncing(false);
-    }
-  }, [refresh]);
+  const addMany = useCallback(
+    async (recs: NotaRecord[]) => {
+      const id = userIdRef.current ?? (await uid());
+      if (!id || recs.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
+      setSyncing(true);
+      try {
+        const { data: existingRows } = await supabase
+          .from("nota_records")
+          .select("*")
+          .eq("user_id", id);
+        const pool: CloudRecord[] = (existingRows ?? []).map(mapRow);
+
+        const toCreate: NotaRecord[] = [];
+        let updated = 0;
+        let skipped = 0;
+
+        for (const rec of recs) {
+          const match = pool.find((p) => isSameEntity(p, rec));
+          if (!match) {
+            toCreate.push(rec);
+            pool.push({ ...(rec as CloudRecord) });
+            continue;
+          }
+          const merged = mergeRecords(match, rec);
+          if (!isMoreComplete(match, merged)) {
+            skipped++; // duplicado idêntico: ignora
+            continue;
+          }
+          const { user_id: _u, ...patch } = toInsert(merged, id);
+          await supabase.from("nota_records").update(patch).eq("id", match._id!);
+          Object.assign(match, merged);
+          updated++;
+        }
+
+        if (toCreate.length) {
+          const { error } = await supabase
+            .from("nota_records")
+            .insert(toCreate.map((r) => toInsert(r, id)));
+          if (error) throw error;
+        }
+        await refresh();
+        return { inserted: toCreate.length, updated, skipped };
+      } finally {
+        setSyncing(false);
+      }
+    },
+    [refresh],
+  );
 
   const addOne = useCallback(
     async (r: NotaRecord) => addMany([r]),
