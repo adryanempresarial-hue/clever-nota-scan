@@ -426,7 +426,10 @@ function NotaTool() {
                     Arraste seus documentos ou clique para selecionar
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Até 10 arquivos · JPG, JPEG, PNG, WEBP, PDF
+                    Até 10 arquivos · JPG, JPEG, PNG, WEBP, PDF, XLSX, XLS, CSV, ODS
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Planilhas são lidas linha a linha (cada linha vira um registro)
                   </p>
                 </div>
               </div>
