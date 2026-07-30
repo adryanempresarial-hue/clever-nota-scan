@@ -113,9 +113,14 @@ export const extractFromFiles = createServerFn({ method: "POST" })
       data.files.map(async (file) => {
         try {
           let object = await extractOne(file);
-          if (isEmpty(object as Record<string, unknown>)) {
-            console.log("[NOTA] RETRY empty result for", file.name);
-            object = await extractOne(file);
+          const missingName = !String((object as Record<string, unknown>).nome ?? "").trim();
+          if (isEmpty(object as Record<string, unknown>) || missingName) {
+            console.log("[NOTA] RETRY (vazio ou sem nome) para", file.name);
+            const retry = await extractOne(file);
+            const retryName = String((retry as Record<string, unknown>).nome ?? "").trim();
+            if (retryName || isEmpty(object as Record<string, unknown>)) {
+              object = { ...object, ...Object.fromEntries(Object.entries(retry).filter(([, v]) => v != null && v !== "")) } as typeof object;
+            }
           }
           normalize(object as Record<string, unknown>);
           console.log("[NOTA] EXTRACTED_DATA", file.name, JSON.stringify(object));
