@@ -173,13 +173,15 @@ function NotaTool() {
   const [autoProcess, setAutoProcess] = useState(true);
   const pendingAutoRef = useRef(false);
   const {
-    records,
+    records: rawRecords,
     loading: loadingRecords,
     syncing: syncingRecords,
     addMany,
     removeOne,
     clearAll,
   } = useCloudRecords();
+  // Ordena por número do apartamento (HUB): 21 → 612, e o 200 sempre por último
+  const records = useMemo(() => sortByApartment(rawRecords), [rawRecords]);
   const {
     files: cloudFiles,
     loading: loadingFiles,
