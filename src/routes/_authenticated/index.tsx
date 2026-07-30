@@ -1366,6 +1366,7 @@ function EmailsTab({
   const [generating, setGenerating] = useState(false);
   const [title, setTitle] = useState<string>("D4S · NOTA — E-mails");
   const [subtitle, setSubtitle] = useState<string>("");
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
 
   const entries = useMemo<EmailEntry[]>(() => {
     return records
@@ -1383,8 +1384,9 @@ function EmailsTab({
     const end = to ? new Date(`${to}T23:59:59.999`) : null;
     return entries
       .filter((e) => (start ? e.date >= start : true) && (end ? e.date <= end : true))
+      .filter((e) => !removed.has(e.email.toLowerCase()))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [entries, from, to]);
+  }, [entries, from, to, removed]);
 
   const copyAll = async () => {
     if (filtered.length === 0) return toast.error("Nenhum e-mail no período");
