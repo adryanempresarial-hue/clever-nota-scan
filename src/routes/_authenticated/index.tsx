@@ -1766,6 +1766,11 @@ function PhonesTab({
           <Button variant="outline" size="sm" onClick={copyAll} disabled={filtered.length === 0}>
             <Copy className="w-4 h-4 mr-2" /> Copiar todos
           </Button>
+          {removed.size > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setRemoved(new Set())}>
+              Restaurar removidos ({removed.size})
+            </Button>
+          )}
           <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
             {generating ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1794,6 +1799,16 @@ function PhonesTab({
                 </div>
               </div>
               <CopyButton value={e.telefone} label="telefone" />
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Remover número da lista"
+                onClick={() =>
+                  setRemoved((prev) => new Set(prev).add(e.telefone.replace(/\D+/g, "")))
+                }
+              >
+                <X className="w-4 h-4 text-destructive" />
+              </Button>
             </div>
           ))}
         </Card>
