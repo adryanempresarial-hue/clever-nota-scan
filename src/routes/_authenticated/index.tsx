@@ -269,9 +269,18 @@ function NotaTool() {
 
       if (collected.length === 0) throw new Error("Nenhum dado encontrado nos arquivos");
       console.log("[NOTA] SAVED_DATA", collected);
-      await addMany(collected);
+      const r = await addMany(collected);
       setProgress(100);
-      toast.success(`${collected.length} registro(s) processado(s)`);
+      if (r) {
+        const parts = [
+          r.inserted ? `${r.inserted} novo(s)` : "",
+          r.updated ? `${r.updated} atualizado(s)` : "",
+          r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
+        ].filter(Boolean);
+        toast.success(parts.length ? parts.join(" · ") : "Nada novo a salvar");
+      } else {
+        toast.success(`${collected.length} registro(s) processado(s)`);
+      }
       setFiles([]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
