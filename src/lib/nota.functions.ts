@@ -42,7 +42,14 @@ EXTRAIA SEMPRE estes 6 campos prioritários, nesta ordem:
 5. cep       — formato 00000-000
 6. numero    — número do endereço (apenas o número do imóvel)
 
-Leia TODO o texto visível (cabeçalhos, rodapés, carimbos, manuscrito) antes de responder. Só deixe null o que REALMENTE não aparece. Você pode preencher os demais campos do schema se forem visíveis, mas os 6 acima são OBRIGATÓRIOS sempre que existirem no documento.
+Leia TODO o texto visível (cabeçalhos, rodapés, carimbos, manuscrito, tabelas, colunas laterais) antes de responder. Só deixe null o que REALMENTE não aparece. Você pode preencher os demais campos do schema se forem visíveis, mas os 6 acima são OBRIGATÓRIOS sempre que existirem no documento.
+
+REGRA CRÍTICA PARA "nome" (nunca retorne null se houver qualquer nome no documento):
+- Procure por rótulos como: Nome, Nome completo, Cliente, Hóspede, Titular, Responsável, Passageiro, Destinatário, Tomador, Contratante, Locatário, Beneficiário, Sacado, Favorecido, Razão Social, Nome Fantasia, Sr./Sra.
+- Se não houver rótulo, use a linha de texto com 2 ou mais palavras alfabéticas que pareça um nome próprio (sem dígitos), mesmo que manuscrita ou em caixa alta.
+- Se houver colunas separadas de nome e sobrenome, junte as duas.
+- Se aparecerem vários nomes, escolha o do cliente/hóspede/destinatário, nunca o do emitente/hotel/empresa prestadora — a menos que só exista um nome.
+- Nomes em CAIXA ALTA devem ser convertidos para Title Case.
 
 Formate CNPJ como 00.000.000/0000-00, datas como DD/MM/AAAA, valores como R$ 0,00 e estado como sigla de 2 letras (ex.: RJ, SP).`;
 
@@ -106,9 +113,14 @@ export const extractFromFiles = createServerFn({ method: "POST" })
       data.files.map(async (file) => {
         try {
           let object = await extractOne(file);
-          if (isEmpty(object as Record<string, unknown>)) {
-            console.log("[NOTA] RETRY empty result for", file.name);
-            object = await extractOne(file);
+          const missingName = !String((object as Record<string, unknown>).nome ?? "").trim();
+          if (isEmpty(object as Record<string, unknown>) || missingName) {
+            console.log("[NOTA] RETRY (vazio ou sem nome) para", file.name);
+            const retry = await extractOne(file);
+            const retryName = String((retry as Record<string, unknown>).nome ?? "").trim();
+            if (retryName || isEmpty(object as Record<string, unknown>)) {
+              object = { ...object, ...Object.fromEntries(Object.entries(retry).filter(([, v]) => v != null && v !== "")) } as typeof object;
+            }
           }
           normalize(object as Record<string, unknown>);
           console.log("[NOTA] EXTRACTED_DATA", file.name, JSON.stringify(object));

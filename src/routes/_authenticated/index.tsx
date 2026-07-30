@@ -99,26 +99,154 @@ const SHEET_COLUMN_MAP: Record<string, keyof NotaRecord> = {
   valor: "valor", valortotal: "valor", total: "valor",
 };
 
+// Sinônimos adicionais (busca por "contém", tolera variações de cabeçalho)
+const SHEET_FUZZY: [RegExp, keyof NotaRecord][] = [
+  [/(hospede|hospedes|passageiro|titular|responsavel|locatario|inquilino|morador|proprietario|beneficiario|contratante|tomador|destinatario|favorecido|participante|convidado|aluno|paciente|funcionario|colaborador|socio|pessoa|nomerazao|razao|nome)/, "nome"],
+  [/(cnpj)/, "cnpj"],
+  [/(cpf|documento|doc|rgcpf)/, "cpf"],
+  [/(mail)/, "email"],
+  [/(tel|cel|fone|whats|zap)/, "telefone"],
+  [/(cep)/, "cep"],
+  [/(apto|apartamento|unidade|quarto|uh|hub|numero|num)/, "numero"],
+  [/(bairro)/, "bairro"],
+  [/(cidade|municipio)/, "cidade"],
+  [/(estado|^uf$)/, "estado"],
+  [/(endereco|logradouro|rua|avenida)/, "endereco"],
+  [/(notafiscal|^nf$|nfe|nota)/, "notaFiscal"],
+  [/(dataemissao|emissao|checkin|data)/, "data"],
+  [/(valor|total|preco)/, "valor"],
+];
+
+const FIRST_NAME_RE = /^(primeironome|nome1|firstname|prenome)$/;
+const LAST_NAME_RE = /^(sobrenome|ultimonome|lastname|surname|nome2)$/;
+
+function mapHeader(header: string): keyof NotaRecord | "firstName" | "lastName" | null {
+  const n = norm(header);
+  if (!n) return null;
+  if (FIRST_NAME_RE.test(n)) return "firstName";
+  if (LAST_NAME_RE.test(n)) return "lastName";
+  if (SHEET_COLUMN_MAP[n]) return SHEET_COLUMN_MAP[n];
+  for (const [re, key] of SHEET_FUZZY) if (re.test(n)) return key;
+  return null;
+}
+
+const LOWER_WORDS = new Set(["de", "da", "do", "das", "dos", "e", "di", "du"]);
+const titleCase = (s: string) =>
+  s
+    .toLocaleLowerCase("pt-BR")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i) => (LOWER_WORDS.has(w) && i > 0 ? w : w.charAt(0).toLocaleUpperCase("pt-BR") + w.slice(1)))
+    .join(" ");
+
+const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const digitsOf = (v: string) => v.replace(/\D/g, "");
+const looksLikeCpf = (v: string) => /^\d{11}$/.test(digitsOf(v)) && /[.\-\d]/.test(v);
+const looksLikeCnpj = (v: string) => /^\d{14}$/.test(digitsOf(v));
+const looksLikePhone = (v: string) => [10, 11].includes(digitsOf(v).length) && /[()\-\s]/.test(v);
+const looksLikeCep = (v: string) => /^\d{5}-?\d{3}$/.test(v.trim());
+const looksLikeName = (v: string) =>
+  /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'.\- ]{2,}$/.test(v.trim()) && /\s/.test(v.trim()) && !/\d/.test(v);
+
+/** Encontra a linha de cabeçalho: a primeira que casa com pelo menos 1 campo conhecido. */
+function findHeaderRow(matrix: unknown[][]): number {
+  const limit = Math.min(matrix.length, 30);
+  let best = -1;
+  let bestScore = 0;
+  for (let i = 0; i < limit; i++) {
+    const score = (matrix[i] ?? []).reduce<number>(
+      (acc, c) => acc + (mapHeader(String(c ?? "")) ? 1 : 0),
+      0,
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  }
+  return bestScore > 0 ? best : -1;
+}
+
 // Lê planilhas (xlsx/xls/csv/ods) no navegador: cada linha vira um registro
 async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
   const XLSX = await import("xlsx");
   const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
   const out: NotaRecord[] = [];
+
   for (const sheetName of wb.SheetNames) {
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], {
+      header: 1,
       defval: "",
       raw: false,
+      blankrows: false,
     });
-    rows.forEach((row, i) => {
-      const rec: NotaRecord = { _arquivo: `${file.name} — ${sheetName} · linha ${i + 2}` };
+    if (!matrix.length) continue;
+
+    const headerRow = findHeaderRow(matrix);
+    const headers = headerRow >= 0 ? (matrix[headerRow] ?? []).map((c) => String(c ?? "")) : [];
+    const keys = headers.map(mapHeader);
+    const dataRows = matrix.slice(headerRow >= 0 ? headerRow + 1 : 0);
+
+    dataRows.forEach((row, i) => {
+      const rec: NotaRecord = {
+        _arquivo: `${file.name} — ${sheetName} · linha ${(headerRow >= 0 ? headerRow + 2 : 1) + i}`,
+      };
       let filled = 0;
-      for (const [header, value] of Object.entries(row)) {
-        const key = SHEET_COLUMN_MAP[norm(String(header))];
-        const val = String(value ?? "").trim();
-        if (!key || !val) continue;
-        (rec as Record<string, unknown>)[key] = key === "email" ? val.toLowerCase() : val;
+      let first = "";
+      let last = "";
+      const leftovers: string[] = [];
+
+      row.forEach((cell, c) => {
+        const val = String(cell ?? "").trim();
+        if (!val) return;
+        const key = keys[c] ?? null;
+        if (key === "firstName") {
+          first = val;
+          return;
+        }
+        if (key === "lastName") {
+          last = val;
+          return;
+        }
+        if (!key) {
+          leftovers.push(val);
+          return;
+        }
+        if ((rec as Record<string, unknown>)[key]) return;
+        (rec as Record<string, unknown>)[key] = val;
+        filled++;
+      });
+
+      if (first || last) {
+        rec.nome = [first, last].filter(Boolean).join(" ");
         filled++;
       }
+
+      // Inferência por conteúdo para colunas sem cabeçalho reconhecido
+      for (const val of leftovers) {
+        if (!rec.email && looksLikeEmail(val)) rec.email = val;
+        else if (!rec.cpf && looksLikeCpf(val)) rec.cpf = val;
+        else if (!rec.cnpj && looksLikeCnpj(val)) rec.cnpj = val;
+        else if (!rec.cep && looksLikeCep(val)) rec.cep = val;
+        else if (!rec.telefone && looksLikePhone(val)) rec.telefone = val;
+        else if (!rec.nome && looksLikeName(val)) rec.nome = val;
+        else continue;
+        filled++;
+      }
+
+      // Nome ainda vazio? tenta o CNPJ/razão em qualquer célula textual da linha
+      if (!rec.nome) {
+        const candidate = row
+          .map((c) => String(c ?? "").trim())
+          .find((v) => looksLikeName(v));
+        if (candidate) {
+          rec.nome = candidate;
+          filled++;
+        }
+      }
+
+      if (rec.nome) rec.nome = titleCase(String(rec.nome));
+      if (rec.email) rec.email = String(rec.email).toLowerCase();
+
       if (filled > 0) out.push(rec);
     });
   }
