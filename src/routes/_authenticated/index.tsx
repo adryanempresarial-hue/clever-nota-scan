@@ -1602,6 +1602,7 @@ function PhonesTab({
   const [generating, setGenerating] = useState(false);
   const [title, setTitle] = useState<string>("D4S · NOTA — Números");
   const [subtitle, setSubtitle] = useState<string>("");
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
 
   const entries = useMemo<PhoneEntry[]>(() => {
     return records
@@ -1619,8 +1620,9 @@ function PhonesTab({
     const end = to ? new Date(`${to}T23:59:59.999`) : null;
     return entries
       .filter((e) => (start ? e.date >= start : true) && (end ? e.date <= end : true))
+      .filter((e) => !removed.has(e.telefone.replace(/\D+/g, "")))
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [entries, from, to]);
+  }, [entries, from, to, removed]);
 
   const copyAll = async () => {
     if (filtered.length === 0) return toast.error("Nenhum número no período");
