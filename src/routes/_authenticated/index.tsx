@@ -196,6 +196,7 @@ function NotaTool() {
   } | null>(null);
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
   const inputRef = useRef<HTMLInputElement>(null);
+  const sheetInputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
 
   const addFiles = (incoming: FileList | File[]) => {
@@ -431,6 +432,26 @@ function NotaTool() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Planilhas são lidas linha a linha (cada linha vira um registro)
                   </p>
+                </div>
+                <div className="pt-1">
+                  <input
+                    ref={sheetInputRef}
+                    type="file"
+                    multiple
+                    accept=".xlsx,.xls,.xlsm,.csv,.ods"
+                    className="hidden"
+                    onChange={(e) => e.target.files && addFiles(e.target.files)}
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      sheetInputRef.current?.click();
+                    }}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    Importar planilha (XLSX, XLS, CSV, ODS)
+                  </Button>
                 </div>
               </div>
             </Card>
