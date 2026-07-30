@@ -196,6 +196,7 @@ function NotaTool() {
   } | null>(null);
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
   const inputRef = useRef<HTMLInputElement>(null);
+  const sheetInputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
 
   const addFiles = (incoming: FileList | File[]) => {
