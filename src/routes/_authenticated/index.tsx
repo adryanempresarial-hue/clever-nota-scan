@@ -165,8 +165,6 @@ function nextVersionedName(base: string, ext: ExportKind, existing: { name: stri
   return `${base}_${String(next).padStart(3, "0")}.${ext}`;
 }
 
-type AnyRecord = NotaRecord & { _id?: string; _createdAt?: string };
-
 /** Número do apartamento (HUB): 21 → 612; 200 sempre por último. */
 function apartmentNumber(r: NotaRecord): number | null {
   const raw = String(r.numero ?? "").match(/\d+/);
