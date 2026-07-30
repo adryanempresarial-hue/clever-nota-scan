@@ -71,7 +71,60 @@ export const Route = createFileRoute("/_authenticated/")({
 });
 
 const ACCEPTED = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
-const ACCEPT_ATTR = ".jpg,.jpeg,.png,.webp,.pdf";
+const ACCEPT_ATTR = ".jpg,.jpeg,.png,.webp,.pdf,.xlsx,.xls,.csv,.ods";
+const SHEET_EXT = /\.(xlsx|xls|xlsm|csv|ods)$/i;
+const isSheet = (f: File) => SHEET_EXT.test(f.name);
+
+const norm = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const SHEET_COLUMN_MAP: Record<string, keyof NotaRecord> = {
+  nome: "nome", nomecompleto: "nome", razaosocial: "nome", cliente: "nome", nomefantasia: "nome",
+  cpf: "cpf", cpfcnpj: "cpf", documento: "cpf",
+  cnpj: "cnpj",
+  email: "email", emails: "email", ementeeletronico: "email", correioeletronico: "email",
+  telefone: "telefone", celular: "telefone", fone: "telefone", whatsapp: "telefone", contato: "telefone",
+  cep: "cep", codigopostal: "cep",
+  endereco: "endereco", logradouro: "endereco", rua: "endereco",
+  numero: "numero", num: "numero", n: "numero",
+  bairro: "bairro",
+  cidade: "cidade", municipio: "cidade",
+  estado: "estado", uf: "estado",
+  notafiscal: "notaFiscal", nf: "notaFiscal", numeronota: "notaFiscal",
+  data: "data", dataemissao: "data",
+  valor: "valor", valortotal: "valor", total: "valor",
+};
+
+// Lê planilhas (xlsx/xls/csv/ods) no navegador: cada linha vira um registro
+async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const out: NotaRecord[] = [];
+  for (const sheetName of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[sheetName], {
+      defval: "",
+      raw: false,
+    });
+    rows.forEach((row, i) => {
+      const rec: NotaRecord = { _arquivo: `${file.name} — ${sheetName} · linha ${i + 2}` };
+      let filled = 0;
+      for (const [header, value] of Object.entries(row)) {
+        const key = SHEET_COLUMN_MAP[norm(String(header))];
+        const val = String(value ?? "").trim();
+        if (!key || !val) continue;
+        (rec as Record<string, unknown>)[key] = key === "email" ? val.toLowerCase() : val;
+        filled++;
+      }
+      if (filled > 0) out.push(rec);
+    });
+  }
+  return out;
+}
+
 const MAX_FILES = 10;
 
 // Ordem FIXA de campos extraídos e exibidos em todos os documentos
@@ -147,7 +200,7 @@ function NotaTool() {
 
   const addFiles = (incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
-    const valid = arr.filter((f) => ACCEPTED.includes(f.type));
+    const valid = arr.filter((f) => ACCEPTED.includes(f.type) || isSheet(f));
     const rejected = arr.length - valid.length;
     if (rejected > 0) toast.error(`${rejected} arquivo(s) com formato não suportado`);
     setFiles((prev) => {
@@ -170,18 +223,31 @@ function NotaTool() {
     setProgress(5);
     const tick = setInterval(() => setProgress((p) => Math.min(90, p + 5)), 600);
     try {
-      const payload = await Promise.all(
-        files.map(async (f) => ({
-          name: f.name,
-          mimeType: f.type,
-          dataBase64: await fileToBase64(f),
-        })),
-      );
-      const res = await extract({ data: { files: payload } });
-      console.log("[NOTA] SAVED_DATA", res.records);
-      await addMany(res.records);
+      const sheets = files.filter(isSheet);
+      const docs = files.filter((f) => !isSheet(f));
+      const collected: NotaRecord[] = [];
+
+      for (const f of sheets) {
+        collected.push(...(await parseSheetRecords(f)));
+      }
+
+      if (docs.length > 0) {
+        const payload = await Promise.all(
+          docs.map(async (f) => ({
+            name: f.name,
+            mimeType: f.type,
+            dataBase64: await fileToBase64(f),
+          })),
+        );
+        const res = await extract({ data: { files: payload } });
+        collected.push(...res.records);
+      }
+
+      if (collected.length === 0) throw new Error("Nenhum dado encontrado nos arquivos");
+      console.log("[NOTA] SAVED_DATA", collected);
+      await addMany(collected);
       setProgress(100);
-      toast.success(`${res.records.length} documento(s) processado(s)`);
+      toast.success(`${collected.length} registro(s) processado(s)`);
       setFiles([]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
@@ -360,7 +426,10 @@ function NotaTool() {
                     Arraste seus documentos ou clique para selecionar
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Até 10 arquivos · JPG, JPEG, PNG, WEBP, PDF
+                    Até 10 arquivos · JPG, JPEG, PNG, WEBP, PDF, XLSX, XLS, CSV, ODS
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Planilhas são lidas linha a linha (cada linha vira um registro)
                   </p>
                 </div>
               </div>
