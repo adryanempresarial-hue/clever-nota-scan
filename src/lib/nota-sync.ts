@@ -20,26 +20,27 @@ async function uid(): Promise<string | null> {
 }
 
 function mapRow(r: Record<string, unknown>): CloudRecord {
+  const c = (v: unknown) => clean(v);
   return {
     _id: r.id as string,
     _createdAt: r.created_at as string,
-    _arquivo: (r.arquivo as string) ?? "",
-    dtAlteracao: (r.dt_alteracao as string) ?? null,
-    dtCadastro: (r.dt_cadastro as string) ?? null,
-    nome: r.nome as string | null,
-    cpf: r.cpf as string | null,
-    cnpj: r.cnpj as string | null,
-    email: r.email as string | null,
-    telefone: r.telefone as string | null,
-    cep: r.cep as string | null,
-    endereco: r.endereco as string | null,
-    numero: r.numero as string | null,
-    bairro: r.bairro as string | null,
-    cidade: r.cidade as string | null,
-    estado: r.estado as string | null,
-    notaFiscal: r.nota_fiscal as string | null,
-    data: r.data as string | null,
-    valor: r.valor as string | null,
+    _arquivo: c(r.arquivo) ?? "",
+    dtAlteracao: c(r.dt_alteracao),
+    dtCadastro: c(r.dt_cadastro),
+    nome: c(r.nome),
+    cpf: c(r.cpf),
+    cnpj: c(r.cnpj),
+    email: c(r.email),
+    telefone: c(r.telefone),
+    cep: c(r.cep),
+    endereco: c(r.endereco),
+    numero: c(r.numero),
+    bairro: c(r.bairro),
+    cidade: c(r.cidade),
+    estado: c(r.estado),
+    notaFiscal: c(r.nota_fiscal),
+    data: c(r.data),
+    valor: c(r.valor),
   };
 }
 
