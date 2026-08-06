@@ -376,6 +376,44 @@ function sortByApartment<T extends NotaRecord>(list: T[]): T[] {
   });
 }
 
+/** ---- Agrupamento por período de hospedagem (datas do topo) ---- */
+function parseBrDate(v?: string | null): Date | null {
+  const s = String(v ?? "").trim();
+  const m = s.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  const year = y!.length === 2 ? 2000 + parseInt(y!, 10) : parseInt(y!, 10);
+  const dt = new Date(year, parseInt(mo!, 10) - 1, parseInt(d!, 10));
+  return isNaN(dt.getTime()) ? null : dt;
+}
+const fmtBr = (d: Date) =>
+  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+
+/** Extrai o período (Dt. Cadastro / Dt. Ult. Alteração) de um registro. */
+function periodOf(r: NotaRecord): { key: string; label: string; start: number } {
+  const dates = [r.dtCadastro, r.dtAlteracao, r.data]
+    .map(parseBrDate)
+    .filter((d): d is Date => !!d)
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (dates.length === 0) return { key: "sem-data", label: "Sem data", start: Infinity };
+  const first = dates[0]!;
+  const last = dates[dates.length - 1]!;
+  const label =
+    first.getTime() === last.getTime() ? fmtBr(first) : `${fmtBr(first)} - ${fmtBr(last)}`;
+  return { key: label, label, start: first.getTime() };
+}
+
+function groupByPeriod<T extends NotaRecord>(list: T[]) {
+  const map = new Map<string, { label: string; start: number; items: T[] }>();
+  for (const r of list) {
+    const p = periodOf(r);
+    const g = map.get(p.key) ?? { label: p.label, start: p.start, items: [] as T[] };
+    g.items.push(r);
+    map.set(p.key, g);
+  }
+  return [...map.values()].sort((a, b) => a.start - b.start);
+}
+
 function NotaTool() {
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
