@@ -1401,6 +1401,20 @@ async function buildDocx(records: NotaRecord[], emailsOnly: boolean): Promise<Bl
           children: [new TextRun({ text: `Registro ${i + 1}`, bold: true })],
         }),
       );
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Dt. Ult. Alteração: ", bold: true }),
+            new TextRun({ text: r.dtAlteracao ? String(r.dtAlteracao) : "" }),
+          ],
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: "Dt. Cadastro: ", bold: true }),
+            new TextRun({ text: r.dtCadastro ? String(r.dtCadastro) : "" }),
+          ],
+        }),
+      );
       FIELD_ORDER.forEach((k) => {
         const v = r[k];
         children.push(
