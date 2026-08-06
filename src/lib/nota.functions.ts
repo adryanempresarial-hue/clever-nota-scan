@@ -14,6 +14,8 @@ const Input = z.object({
 });
 
 const RecordSchema = z.object({
+  dtAlteracao: z.string().optional().nullable(),
+  dtCadastro: z.string().optional().nullable(),
   nome: z.string().optional().nullable(),
   cpf: z.string().optional().nullable(),
   cnpj: z.string().optional().nullable(),
