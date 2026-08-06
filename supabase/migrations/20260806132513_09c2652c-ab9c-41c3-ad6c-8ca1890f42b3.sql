@@ -1,0 +1,1 @@
+ALTER TABLE public.nota_records ADD COLUMN IF NOT EXISTS dt_alteracao text, ADD COLUMN IF NOT EXISTS dt_cadastro text;

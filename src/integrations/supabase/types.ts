@@ -81,6 +81,8 @@ export type Database = {
           cpf: string | null
           created_at: string
           data: string | null
+          dt_alteracao: string | null
+          dt_cadastro: string | null
           email: string | null
           endereco: string | null
           estado: string | null
@@ -101,6 +103,8 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           data?: string | null
+          dt_alteracao?: string | null
+          dt_cadastro?: string | null
           email?: string | null
           endereco?: string | null
           estado?: string | null
@@ -121,6 +125,8 @@ export type Database = {
           cpf?: string | null
           created_at?: string
           data?: string | null
+          dt_alteracao?: string | null
+          dt_cadastro?: string | null
           email?: string | null
           endereco?: string | null
           estado?: string | null
