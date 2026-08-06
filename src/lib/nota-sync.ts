@@ -46,7 +46,10 @@ async function purgeNullTokens(rows: Record<string, unknown>[]) {
       if (cleaned !== cur) patch[col] = col === "arquivo" ? (cleaned ?? "") : cleaned;
     }
     if (Object.keys(patch).length) {
-      await supabase.from("nota_records").update(patch).eq("id", row.id as string);
+      await supabase
+        .from("nota_records")
+        .update(patch as never)
+        .eq("id", row.id as string);
     }
   }
 }
