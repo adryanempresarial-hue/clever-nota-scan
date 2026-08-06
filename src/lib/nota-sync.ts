@@ -24,6 +24,8 @@ function mapRow(r: Record<string, unknown>): CloudRecord {
     _id: r.id as string,
     _createdAt: r.created_at as string,
     _arquivo: (r.arquivo as string) ?? "",
+    dtAlteracao: (r.dt_alteracao as string) ?? null,
+    dtCadastro: (r.dt_cadastro as string) ?? null,
     nome: r.nome as string | null,
     cpf: r.cpf as string | null,
     cnpj: r.cnpj as string | null,
@@ -45,6 +47,8 @@ function toInsert(r: NotaRecord, user_id: string) {
   return {
     user_id,
     arquivo: r._arquivo ?? "",
+    dt_alteracao: r.dtAlteracao ?? null,
+    dt_cadastro: r.dtCadastro ?? null,
     nome: r.nome ?? null,
     cpf: r.cpf ?? null,
     cnpj: r.cnpj ?? null,
@@ -63,7 +67,7 @@ function toInsert(r: NotaRecord, user_id: string) {
 }
 
 const FIELDS = [
-  "nome","cpf","cnpj","email","telefone","cep","endereco","numero",
+  "dtAlteracao","dtCadastro","nome","cpf","cnpj","email","telefone","cep","endereco","numero",
   "bairro","cidade","estado","notaFiscal","data","valor",
 ] as const;
 
