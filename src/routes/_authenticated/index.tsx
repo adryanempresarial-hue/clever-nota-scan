@@ -474,7 +474,7 @@ function NotaTool() {
 
   const handleSignOut = async () => {
     await signOut();
-    navigate({ to: "/auth" });
+    navigate({ to: "/auth", search: { redirect: undefined } });
   };
 
   return (
