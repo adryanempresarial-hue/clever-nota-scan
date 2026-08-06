@@ -259,7 +259,7 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
       const leftovers: string[] = [];
 
       row.forEach((cell, c) => {
-        const val = String(cell ?? "").trim();
+        const val = cleanCell(cell);
         if (!val) return;
         const key = keys[c] ?? null;
         if (key === "firstName") {
@@ -291,6 +291,8 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
         else if (!rec.cnpj && looksLikeCnpj(val)) rec.cnpj = val;
         else if (!rec.cep && looksLikeCep(val)) rec.cep = val;
         else if (!rec.telefone && looksLikePhone(val)) rec.telefone = val;
+        else if (!rec.dtCadastro && looksLikeDate(val) && rec.dtAlteracao) rec.dtCadastro = val;
+        else if (!rec.dtAlteracao && looksLikeDate(val)) rec.dtAlteracao = val;
         else if (!rec.nome && looksLikeName(val)) rec.nome = val;
         else continue;
         filled++;
@@ -299,7 +301,7 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
       // Nome ainda vazio? tenta o CNPJ/razão em qualquer célula textual da linha
       if (!rec.nome) {
         const candidate = row
-          .map((c) => String(c ?? "").trim())
+          .map((c) => cleanCell(c))
           .find((v) => looksLikeName(v));
         if (candidate) {
           rec.nome = candidate;
@@ -307,10 +309,7 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
         }
       }
 
-      if (rec.nome) rec.nome = titleCase(String(rec.nome));
-      if (rec.email) rec.email = String(rec.email).toLowerCase();
-
-      if (filled > 0) out.push(rec);
+      if (filled > 0) out.push(sanitizeRecord(rec));
     });
   }
   return out;
