@@ -454,7 +454,7 @@ function NotaTool() {
           })),
         );
         const res = await extract({ data: { files: payload } });
-        collected.push(...res.records);
+        collected.push(...res.records.map((r) => sanitizeRecord(r as NotaRecord)));
       }
 
       if (collected.length === 0) throw new Error("Nenhum dado encontrado nos arquivos");
