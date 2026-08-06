@@ -19,6 +19,38 @@ async function uid(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+/** Tokens que representam "vazio" e devem sumir dos registros já escaneados. */
+const EMPTY_TOKENS = new Set([
+  "null", "undefined", "nan", "na", "n/a", "n/d", "#n/a", "#n/d", "#valor!", "#value!",
+  "-", "--", "---", "?", ".", "nulo", "vazio", "none", "sem informacao", "seminformacao",
+]);
+function clean(v: unknown): string | null {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  if (!s || EMPTY_TOKENS.has(s.toLowerCase())) return null;
+  return s;
+}
+
+const DB_COLS = [
+  "arquivo","dt_alteracao","dt_cadastro","nome","cpf","cnpj","email","telefone","cep",
+  "endereco","numero","bairro","cidade","estado","nota_fiscal","data","valor",
+] as const;
+
+/** Remove valores tipo "null"/"N/A" das linhas já salvas no banco. */
+async function purgeNullTokens(rows: Record<string, unknown>[]) {
+  for (const row of rows) {
+    const patch: Record<string, string | null> = {};
+    for (const col of DB_COLS) {
+      const cur = row[col];
+      if (cur == null) continue;
+      const cleaned = clean(cur);
+      if (cleaned !== cur) patch[col] = col === "arquivo" ? (cleaned ?? "") : cleaned;
+    }
+    if (Object.keys(patch).length) {
+      await supabase.from("nota_records").update(patch).eq("id", row.id as string);
+    }
+  }
+}
+
 function mapRow(r: Record<string, unknown>): CloudRecord {
   const c = (v: unknown) => clean(v);
   return {
