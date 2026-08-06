@@ -1275,8 +1275,10 @@ async function buildXlsx(records: NotaRecord[], emailsOnly: boolean): Promise<Bl
     headers = ["E-mail"];
     rows = records.map((r) => ({ "E-mail": r.email || "" }));
   } else {
-    headers = ["Nome", "CPF", "Telefone", "E-mail", "CEP", "Número"];
+    headers = ["Dt. Ult. Alteração", "Dt. Cadastro", "Nome", "CPF", "Telefone", "E-mail", "CEP", "Número"];
     rows = records.map((r) => ({
+      "Dt. Ult. Alteração": r.dtAlteracao || "",
+      "Dt. Cadastro": r.dtCadastro || "",
       Nome: r.nome || "",
       CPF: r.cpf || "",
       Telefone: r.telefone || "",
@@ -1337,8 +1339,10 @@ async function buildPdf(records: NotaRecord[], emailsOnly: boolean): Promise<Blo
     });
   } else {
     autoTable(doc, {
-      head: [["Nome", "CPF", "Telefone", "E-mail", "CEP", "Número"]],
+      head: [["Dt. Ult. Alteração", "Dt. Cadastro", "Nome", "CPF", "Telefone", "E-mail", "CEP", "Número"]],
       body: records.map((r) => [
+        r.dtAlteracao || "",
+        r.dtCadastro || "",
         r.nome || "",
         r.cpf || "",
         r.telefone || "",
