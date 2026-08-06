@@ -813,11 +813,22 @@ function NotaTool() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  {records.map((r, idx) => (
-                    <RecordCard key={idx} record={r} />
-                  ))}
-                </div>
+                {groupByPeriod(records).map((g) => (
+                  <div key={g.label} className="space-y-3">
+                    <div className="flex items-center gap-2 border-b pb-2">
+                      <CalendarDays className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">{g.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({g.items.length})
+                      </span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {g.items.map((r, idx) => (
+                        <RecordCard key={r._id ?? `${g.label}-${idx}`} record={r} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
           </TabsContent>
@@ -857,15 +868,26 @@ function NotaTool() {
                     </Button>
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {records.map((r) => (
-                    <RecordCard
-                      key={r._id ?? r._arquivo}
-                      record={r}
-                      onDelete={() => removeOne(r._id)}
-                    />
-                  ))}
-                </div>
+                {groupByPeriod(records).map((g) => (
+                  <div key={g.label} className="space-y-3">
+                    <div className="flex items-center gap-2 border-b pb-2">
+                      <CalendarDays className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">{g.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({g.items.length})
+                      </span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {g.items.map((r) => (
+                        <RecordCard
+                          key={r._id ?? r._arquivo}
+                          record={r}
+                          onDelete={() => removeOne(r._id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
           </TabsContent>
