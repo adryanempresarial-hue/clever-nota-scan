@@ -27,6 +27,7 @@ import {
   Users,
   ScanLine,
   Search,
+  CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -374,6 +375,44 @@ function sortByApartment<T extends NotaRecord>(list: T[]): T[] {
     if (ra !== 0) return 0;
     return (na as number) - (nb as number);
   });
+}
+
+/** ---- Agrupamento por período de hospedagem (datas do topo) ---- */
+function parseBrDate(v?: string | null): Date | null {
+  const s = String(v ?? "").trim();
+  const m = s.match(/(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  const year = y!.length === 2 ? 2000 + parseInt(y!, 10) : parseInt(y!, 10);
+  const dt = new Date(year, parseInt(mo!, 10) - 1, parseInt(d!, 10));
+  return isNaN(dt.getTime()) ? null : dt;
+}
+const fmtBr = (d: Date) =>
+  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+
+/** Extrai o período (Dt. Cadastro / Dt. Ult. Alteração) de um registro. */
+function periodOf(r: NotaRecord): { key: string; label: string; start: number } {
+  const dates = [r.dtCadastro, r.dtAlteracao, r.data]
+    .map(parseBrDate)
+    .filter((d): d is Date => !!d)
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (dates.length === 0) return { key: "sem-data", label: "Sem data", start: Infinity };
+  const first = dates[0]!;
+  const last = dates[dates.length - 1]!;
+  const label =
+    first.getTime() === last.getTime() ? fmtBr(first) : `${fmtBr(first)} - ${fmtBr(last)}`;
+  return { key: label, label, start: first.getTime() };
+}
+
+function groupByPeriod<T extends NotaRecord>(list: T[]) {
+  const map = new Map<string, { label: string; start: number; items: T[] }>();
+  for (const r of list) {
+    const p = periodOf(r);
+    const g = map.get(p.key) ?? { label: p.label, start: p.start, items: [] as T[] };
+    g.items.push(r);
+    map.set(p.key, g);
+  }
+  return [...map.values()].sort((a, b) => a.start - b.start);
 }
 
 function NotaTool() {
@@ -775,11 +814,22 @@ function NotaTool() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  {records.map((r, idx) => (
-                    <RecordCard key={idx} record={r} />
-                  ))}
-                </div>
+                {groupByPeriod(records).map((g) => (
+                  <div key={g.label} className="space-y-3">
+                    <div className="flex items-center gap-2 border-b pb-2">
+                      <CalendarDays className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">{g.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({g.items.length})
+                      </span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {g.items.map((r, idx) => (
+                        <RecordCard key={r._id ?? `${g.label}-${idx}`} record={r} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
           </TabsContent>
@@ -819,15 +869,26 @@ function NotaTool() {
                     </Button>
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {records.map((r) => (
-                    <RecordCard
-                      key={r._id ?? r._arquivo}
-                      record={r}
-                      onDelete={() => removeOne(r._id)}
-                    />
-                  ))}
-                </div>
+                {groupByPeriod(records).map((g) => (
+                  <div key={g.label} className="space-y-3">
+                    <div className="flex items-center gap-2 border-b pb-2">
+                      <CalendarDays className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">{g.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({g.items.length})
+                      </span>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {g.items.map((r) => (
+                        <RecordCard
+                          key={r._id ?? r._arquivo}
+                          record={r}
+                          onDelete={() => removeOne(r._id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
           </TabsContent>

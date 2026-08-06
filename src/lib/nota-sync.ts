@@ -19,27 +19,63 @@ async function uid(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+/** Tokens que representam "vazio" e devem sumir dos registros já escaneados. */
+const EMPTY_TOKENS = new Set([
+  "null", "undefined", "nan", "na", "n/a", "n/d", "#n/a", "#n/d", "#valor!", "#value!",
+  "-", "--", "---", "?", ".", "nulo", "vazio", "none", "sem informacao", "seminformacao",
+]);
+function clean(v: unknown): string | null {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim();
+  if (!s || EMPTY_TOKENS.has(s.toLowerCase())) return null;
+  return s;
+}
+
+const DB_COLS = [
+  "arquivo","dt_alteracao","dt_cadastro","nome","cpf","cnpj","email","telefone","cep",
+  "endereco","numero","bairro","cidade","estado","nota_fiscal","data","valor",
+] as const;
+
+/** Remove valores tipo "null"/"N/A" das linhas já salvas no banco. */
+async function purgeNullTokens(rows: Record<string, unknown>[]) {
+  for (const row of rows) {
+    const patch: Record<string, string | null> = {};
+    for (const col of DB_COLS) {
+      const cur = row[col];
+      if (cur == null) continue;
+      const cleaned = clean(cur);
+      if (cleaned !== cur) patch[col] = col === "arquivo" ? (cleaned ?? "") : cleaned;
+    }
+    if (Object.keys(patch).length) {
+      await supabase
+        .from("nota_records")
+        .update(patch as never)
+        .eq("id", row.id as string);
+    }
+  }
+}
+
 function mapRow(r: Record<string, unknown>): CloudRecord {
+  const c = (v: unknown) => clean(v);
   return {
     _id: r.id as string,
     _createdAt: r.created_at as string,
-    _arquivo: (r.arquivo as string) ?? "",
-    dtAlteracao: (r.dt_alteracao as string) ?? null,
-    dtCadastro: (r.dt_cadastro as string) ?? null,
-    nome: r.nome as string | null,
-    cpf: r.cpf as string | null,
-    cnpj: r.cnpj as string | null,
-    email: r.email as string | null,
-    telefone: r.telefone as string | null,
-    cep: r.cep as string | null,
-    endereco: r.endereco as string | null,
-    numero: r.numero as string | null,
-    bairro: r.bairro as string | null,
-    cidade: r.cidade as string | null,
-    estado: r.estado as string | null,
-    notaFiscal: r.nota_fiscal as string | null,
-    data: r.data as string | null,
-    valor: r.valor as string | null,
+    _arquivo: c(r.arquivo) ?? "",
+    dtAlteracao: c(r.dt_alteracao),
+    dtCadastro: c(r.dt_cadastro),
+    nome: c(r.nome),
+    cpf: c(r.cpf),
+    cnpj: c(r.cnpj),
+    email: c(r.email),
+    telefone: c(r.telefone),
+    cep: c(r.cep),
+    endereco: c(r.endereco),
+    numero: c(r.numero),
+    bairro: c(r.bairro),
+    cidade: c(r.cidade),
+    estado: c(r.estado),
+    notaFiscal: c(r.nota_fiscal),
+    data: c(r.data),
+    valor: c(r.valor),
   };
 }
 
@@ -118,6 +154,7 @@ export function useCloudRecords() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const userIdRef = useRef<string | null>(null);
+  const purgedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     const id = userIdRef.current ?? (await uid());
@@ -132,6 +169,10 @@ export function useCloudRecords() {
       .order("created_at", { ascending: false });
     if (!error && data) setRecords(data.map(mapRow));
     setLoading(false);
+    if (!purgedRef.current && !error && data) {
+      purgedRef.current = true;
+      purgeNullTokens(data as unknown as Record<string, unknown>[]).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
