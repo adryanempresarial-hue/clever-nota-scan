@@ -154,6 +154,7 @@ export function useCloudRecords() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const userIdRef = useRef<string | null>(null);
+  const purgedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     const id = userIdRef.current ?? (await uid());
@@ -168,6 +169,10 @@ export function useCloudRecords() {
       .order("created_at", { ascending: false });
     if (!error && data) setRecords(data.map(mapRow));
     setLoading(false);
+    if (!purgedRef.current && !error && data) {
+      purgedRef.current = true;
+      purgeNullTokens(data as unknown as Record<string, unknown>[]).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
