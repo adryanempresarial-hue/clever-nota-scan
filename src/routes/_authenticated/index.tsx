@@ -932,9 +932,11 @@ function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () =>
   const entries = FIELD_ORDER.map((k) => [k, record[k]] as const);
 
   const copyAll = async () => {
-    const text = entries
-      .map(([k, v]) => `${FIELD_LABELS[k]}: ${v ?? ""}`)
-      .join("\n");
+    const text = [
+      `Dt. Ult. Alteração: ${record.dtAlteracao ?? ""}`,
+      `Dt. Cadastro: ${record.dtCadastro ?? ""}`,
+      ...entries.map(([k, v]) => `${FIELD_LABELS[k]}: ${v ?? ""}`),
+    ].join("\n");
     await navigator.clipboard.writeText(text);
     setCopiedAll(true);
     setTimeout(() => setCopiedAll(false), 1500);
@@ -970,6 +972,16 @@ function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () =>
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
         )}
+      </div>
+      <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/60 px-3 py-2">
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Dt. Ult. Alteração</div>
+          <div className="text-sm font-medium">{record.dtAlteracao || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Dt. Cadastro</div>
+          <div className="text-sm font-medium">{record.dtCadastro || "—"}</div>
+        </div>
       </div>
       <div className="space-y-2">
         {entries.map(([k, v]) => (
