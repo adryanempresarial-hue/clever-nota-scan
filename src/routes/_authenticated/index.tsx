@@ -425,6 +425,7 @@ function NotaTool() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [autoProcess, setAutoProcess] = useState(true);
+  const [forceReprocess, setForceReprocess] = useState(false);
   const pendingAutoRef = useRef(false);
   const {
     records: rawRecords,
@@ -502,7 +503,7 @@ function NotaTool() {
 
       if (collected.length === 0) throw new Error("Nenhum dado encontrado nos arquivos");
       console.log("[NOTA] SAVED_DATA", collected);
-      const r = await addMany(collected);
+      const r = await addMany(collected, { force: forceReprocess });
       setProgress(100);
       if (r) {
         const parts = [
@@ -736,6 +737,15 @@ function NotaTool() {
                         className="accent-primary"
                       />
                       Leitura instantânea
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={forceReprocess}
+                        onChange={(e) => setForceReprocess(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Forçar reprocessamento
                     </label>
                     <Button
                       variant="ghost"
