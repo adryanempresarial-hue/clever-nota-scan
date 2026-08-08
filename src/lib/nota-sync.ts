@@ -26,7 +26,9 @@ const EMPTY_TOKENS = new Set([
 ]);
 function clean(v: unknown): string | null {
   const s = String(v ?? "").replace(/\s+/g, " ").trim();
-  if (!s || EMPTY_TOKENS.has(s.toLowerCase())) return null;
+  const token = s.toLowerCase();
+  const bareToken = token.replace(/[^a-zÀ-ÿ0-9/#]+/gi, "").trim();
+  if (!s || EMPTY_TOKENS.has(token) || EMPTY_TOKENS.has(bareToken)) return null;
   return s;
 }
 

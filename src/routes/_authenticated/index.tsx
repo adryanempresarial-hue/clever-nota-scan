@@ -94,7 +94,9 @@ const SHEET_COLUMN_MAP: Record<string, keyof NotaRecord> = {
   telefone: "telefone", celular: "telefone", fone: "telefone", whatsapp: "telefone", contato: "telefone",
   cep: "cep", codigopostal: "cep",
   endereco: "endereco", logradouro: "endereco", rua: "endereco",
-  numero: "numero", num: "numero", n: "numero",
+  numero: "numero", num: "numero", n: "numero", nr: "numero", nro: "numero",
+  numerodaresidencia: "numero", numeroresidencia: "numero", numeroendereco: "numero",
+  numerodologradouro: "numero", numerodoimovel: "numero", enderecoNumero: "numero",
   bairro: "bairro",
   cidade: "cidade", municipio: "cidade",
   estado: "estado", uf: "estado",
@@ -113,7 +115,7 @@ const SHEET_FUZZY: [RegExp, keyof NotaRecord][] = [
   [/(mail)/, "email"],
   [/(tel|cel|fone|whats|zap)/, "telefone"],
   [/(cep)/, "cep"],
-  [/(apto|apartamento|unidade|quarto|uh|hub|numero|num)/, "numero"],
+  [/(^n$|^nr$|^nro$|apto|apartamento|unidade|quarto|uh|hub|numero|num|imovel)/, "numero"],
   [/(bairro)/, "bairro"],
   [/(cidade|municipio)/, "cidade"],
   [/(estado|^uf$)/, "estado"],
@@ -157,7 +159,9 @@ const EMPTY_TOKENS = new Set([
 function cleanCell(v: unknown): string {
   const s = String(v ?? "").replace(/\s+/g, " ").trim();
   if (!s) return "";
-  if (EMPTY_TOKENS.has(s.toLowerCase())) return "";
+  const token = s.toLowerCase();
+  const bareToken = token.replace(/[^a-zÀ-ÿ0-9/#]+/gi, "").trim();
+  if (EMPTY_TOKENS.has(token) || EMPTY_TOKENS.has(bareToken)) return "";
   return s;
 }
 
