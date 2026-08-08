@@ -738,6 +738,15 @@ function NotaTool() {
                       />
                       Leitura instantânea
                     </label>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={forceReprocess}
+                        onChange={(e) => setForceReprocess(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Forçar reprocessamento
+                    </label>
                     <Button
                       variant="ghost"
                       size="sm"
