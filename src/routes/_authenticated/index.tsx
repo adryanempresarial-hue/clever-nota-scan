@@ -425,6 +425,7 @@ function NotaTool() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [autoProcess, setAutoProcess] = useState(true);
+  const [forceReprocess, setForceReprocess] = useState(false);
   const pendingAutoRef = useRef(false);
   const {
     records: rawRecords,
@@ -502,7 +503,7 @@ function NotaTool() {
 
       if (collected.length === 0) throw new Error("Nenhum dado encontrado nos arquivos");
       console.log("[NOTA] SAVED_DATA", collected);
-      const r = await addMany(collected);
+      const r = await addMany(collected, { force: forceReprocess });
       setProgress(100);
       if (r) {
         const parts = [

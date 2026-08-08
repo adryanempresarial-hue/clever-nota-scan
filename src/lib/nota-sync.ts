@@ -131,13 +131,15 @@ function isSameEntity(a: CloudRecord, b: NotaRecord) {
 }
 
 // mantém o valor mais completo de cada campo
-function mergeRecords(oldR: CloudRecord, newR: NotaRecord): NotaRecord {
+// force = sobrescreve com qualquer valor novo não vazio (reprocessamento)
+function mergeRecords(oldR: CloudRecord, newR: NotaRecord, force = false): NotaRecord {
   const out: Record<string, unknown> = { ...oldR };
   for (const f of FIELDS) {
     const cur = (oldR as Record<string, unknown>)[f] as string | null | undefined;
     const nxt = (newR as Record<string, unknown>)[f] as string | null | undefined;
     if (!norm(nxt)) continue;
-    if (!norm(cur) || (nxt ?? "").trim().length > (cur ?? "").trim().length) out[f] = nxt;
+    if (force || !norm(cur) || (nxt ?? "").trim().length > (cur ?? "").trim().length)
+      out[f] = nxt;
   }
   out._arquivo = newR._arquivo || oldR._arquivo;
   return out as NotaRecord;
@@ -193,7 +195,8 @@ export function useCloudRecords() {
   }, [refresh]);
 
   const addMany = useCallback(
-    async (recs: NotaRecord[]) => {
+    async (recs: NotaRecord[], opts?: { force?: boolean }) => {
+      const force = opts?.force ?? false;
       const id = userIdRef.current ?? (await uid());
       if (!id || recs.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
       setSyncing(true);
@@ -215,8 +218,8 @@ export function useCloudRecords() {
             pool.push({ ...(rec as CloudRecord) });
             continue;
           }
-          const merged = mergeRecords(match, rec);
-          if (!isMoreComplete(match, merged)) {
+          const merged = mergeRecords(match, rec, force);
+          if (!force && !isMoreComplete(match, merged)) {
             skipped++; // duplicado idêntico: ignora
             continue;
           }
