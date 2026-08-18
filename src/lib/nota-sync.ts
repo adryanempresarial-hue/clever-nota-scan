@@ -222,11 +222,8 @@ export function useCloudRecords() {
       if (!id || recs.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
       setSyncing(true);
       try {
-        const { data: existingRows } = await supabase
-          .from("nota_records")
-          .select("*")
-          .eq("user_id", id);
-        const pool: CloudRecord[] = (existingRows ?? []).map(mapRow);
+        const existingRows = await fetchAllRows("nota_records", id);
+        const pool: CloudRecord[] = existingRows.map(mapRow);
 
         const toCreate: NotaRecord[] = [];
         let updated = 0;
