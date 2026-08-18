@@ -19,6 +19,30 @@ async function uid(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+const PAGE = 1000;
+const MAX_ROWS = 1_000_000;
+
+/** Busca todas as linhas de uma tabela em páginas (até 1 milhão). */
+async function fetchAllRows(
+  table: "nota_records" | "nota_files",
+  userId?: string,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; from < MAX_ROWS; from += PAGE) {
+    let q = supabase
+      .from(table)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (userId) q = q.eq("user_id", userId);
+    const { data, error } = await q;
+    if (error || !data) break;
+    out.push(...(data as unknown as Record<string, unknown>[]));
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
 /** Tokens que representam "vazio" e devem sumir dos registros já escaneados. */
 const EMPTY_TOKENS = new Set([
   "null", "undefined", "nan", "na", "n/a", "n/d", "#n/a", "#n/d", "#valor!", "#value!",
@@ -167,15 +191,12 @@ export function useCloudRecords() {
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from("nota_records")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) setRecords(data.map(mapRow));
+    const data = await fetchAllRows("nota_records");
+    setRecords(data.map(mapRow));
     setLoading(false);
-    if (!purgedRef.current && !error && data) {
+    if (!purgedRef.current && data.length) {
       purgedRef.current = true;
-      purgeNullTokens(data as unknown as Record<string, unknown>[]).catch(() => {});
+      purgeNullTokens(data).catch(() => {});
     }
   }, []);
 
@@ -201,11 +222,8 @@ export function useCloudRecords() {
       if (!id || recs.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
       setSyncing(true);
       try {
-        const { data: existingRows } = await supabase
-          .from("nota_records")
-          .select("*")
-          .eq("user_id", id);
-        const pool: CloudRecord[] = (existingRows ?? []).map(mapRow);
+        const existingRows = await fetchAllRows("nota_records", id);
+        const pool: CloudRecord[] = existingRows.map(mapRow);
 
         const toCreate: NotaRecord[] = [];
         let updated = 0;
@@ -288,11 +306,8 @@ export function useCloudFiles() {
       setLoading(false);
       return;
     }
-    const { data } = await supabase
-      .from("nota_files")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (data) setFiles(data as CloudFile[]);
+    const data = await fetchAllRows("nota_files");
+    setFiles(data as unknown as CloudFile[]);
     setLoading(false);
   }, []);
 
