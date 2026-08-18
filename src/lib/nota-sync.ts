@@ -278,6 +278,16 @@ export function useCloudRecords() {
     }
   }, []);
 
+  const updateFields = useCallback(
+    async (recordId: string, patch: Partial<Record<(typeof DB_COLS)[number], string | null>>) => {
+      await supabase.from("nota_records").update(patch as never).eq("id", recordId);
+      setRecords((prev) =>
+        prev.map((r) => (r._id === recordId ? { ...r, ...(patch.cep ? { cep: patch.cep } : {}) } : r)),
+      );
+    },
+    [],
+  );
+
   const clearAll = useCallback(async () => {
     const id = userIdRef.current ?? (await uid());
     if (!id) return;
@@ -290,7 +300,7 @@ export function useCloudRecords() {
     }
   }, []);
 
-  return { records, loading, syncing, addMany, addOne, removeOne, clearAll, refresh };
+  return { records, loading, syncing, addMany, addOne, removeOne, updateFields, clearAll, refresh };
 }
 
 export function useCloudFiles() {
