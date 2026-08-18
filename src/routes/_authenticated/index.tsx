@@ -266,6 +266,7 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
       let first = "";
       let last = "";
       const leftovers: string[] = [];
+      const phones: string[] = [];
 
       row.forEach((cell, c) => {
         const val = cleanCell(cell);
@@ -283,10 +284,34 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
           leftovers.push(val);
           return;
         }
+        // Fone Res / Fone Com / Celular: guarda todos e escolhe o melhor depois
+        if (key === "telefone") {
+          phones.push(val);
+          return;
+        }
+        // Coluna "CPF/CNPJ": decide pelo tamanho do documento
+        if (key === "cpf" && digitsOf(val).length > 11) {
+          if (!rec.cnpj) {
+            rec.cnpj = val;
+            filled++;
+          }
+          return;
+        }
         if ((rec as Record<string, unknown>)[key]) return;
         (rec as Record<string, unknown>)[key] = val;
         filled++;
       });
+
+      if (phones.length) {
+        const best =
+          phones.find((p) => digitsOf(p).length === 11) ??
+          phones.find((p) => digitsOf(p).length === 10) ??
+          phones.find((p) => digitsOf(p).length >= 8) ??
+          phones[0];
+        rec.telefone = best;
+        filled++;
+        for (const p of phones) if (p !== best) leftovers.push(p);
+      }
 
       if (first || last) {
         rec.nome = [first, last].filter(Boolean).join(" ");
@@ -307,13 +332,56 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
         filled++;
       }
 
-      // Nome ainda vazio? tenta o CNPJ/razão em qualquer célula textual da linha
+      // Varredura final: força a captação dos campos-chave em QUALQUER célula da linha
+      const allCells = row.map((c) => cleanCell(c)).filter(Boolean);
       if (!rec.nome) {
-        const candidate = row
-          .map((c) => cleanCell(c))
-          .find((v) => looksLikeName(v));
+        const candidate = allCells.find((v) => looksLikeName(v));
         if (candidate) {
           rec.nome = candidate;
+          filled++;
+        }
+      }
+      if (!rec.email) {
+        const v = allCells.find(looksLikeEmail);
+        if (v) {
+          rec.email = v;
+          filled++;
+        }
+      }
+      if (!rec.cpf) {
+        const v = allCells.find((x) => digitsOf(x).length === 11 && !/@/.test(x));
+        if (v) {
+          rec.cpf = v;
+          filled++;
+        }
+      }
+      if (!rec.cnpj) {
+        const v = allCells.find((x) => digitsOf(x).length === 14 && !/@/.test(x));
+        if (v) {
+          rec.cnpj = v;
+          filled++;
+        }
+      }
+      if (!rec.cep) {
+        const v = allCells.find(looksLikeCep);
+        if (v) {
+          rec.cep = v;
+          filled++;
+        }
+      }
+      if (!rec.telefone) {
+        const v = allCells.find(
+          (x) => !looksLikeEmail(x) && !looksLikeDate(x) && [10, 11].includes(digitsOf(x).length),
+        );
+        if (v) {
+          rec.telefone = v;
+          filled++;
+        }
+      }
+      if (!rec.numero) {
+        const v = allCells.find((x) => /^\d{1,5}$/.test(x.trim()));
+        if (v) {
+          rec.numero = v;
           filled++;
         }
       }
