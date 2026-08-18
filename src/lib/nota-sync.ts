@@ -19,6 +19,30 @@ async function uid(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+const PAGE = 1000;
+const MAX_ROWS = 1_000_000;
+
+/** Busca todas as linhas de uma tabela em páginas (até 1 milhão). */
+async function fetchAllRows(
+  table: "nota_records" | "nota_files",
+  userId?: string,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; from < MAX_ROWS; from += PAGE) {
+    let q = supabase
+      .from(table)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (userId) q = q.eq("user_id", userId);
+    const { data, error } = await q;
+    if (error || !data) break;
+    out.push(...(data as unknown as Record<string, unknown>[]));
+    if (data.length < PAGE) break;
+  }
+  return out;
+}
+
 /** Tokens que representam "vazio" e devem sumir dos registros já escaneados. */
 const EMPTY_TOKENS = new Set([
   "null", "undefined", "nan", "na", "n/a", "n/d", "#n/a", "#n/d", "#valor!", "#value!",
