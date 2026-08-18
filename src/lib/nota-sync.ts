@@ -191,15 +191,12 @@ export function useCloudRecords() {
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from("nota_records")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) setRecords(data.map(mapRow));
+    const data = await fetchAllRows("nota_records");
+    setRecords(data.map(mapRow));
     setLoading(false);
-    if (!purgedRef.current && !error && data) {
+    if (!purgedRef.current && data.length) {
       purgedRef.current = true;
-      purgeNullTokens(data as unknown as Record<string, unknown>[]).catch(() => {});
+      purgeNullTokens(data).catch(() => {});
     }
   }, []);
 
@@ -312,11 +309,8 @@ export function useCloudFiles() {
       setLoading(false);
       return;
     }
-    const { data } = await supabase
-      .from("nota_files")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (data) setFiles(data as CloudFile[]);
+    const data = await fetchAllRows("nota_files");
+    setFiles(data as unknown as CloudFile[]);
     setLoading(false);
   }, []);
 
