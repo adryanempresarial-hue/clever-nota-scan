@@ -615,8 +615,6 @@ function NotaTool() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, processing]);
 
-  const allEmails = useMemo(() => {
-
   const [cepRunning, setCepRunning] = useState(false);
   const [cepProgress, setCepProgress] = useState<{ done: number; total: number } | null>(null);
 
