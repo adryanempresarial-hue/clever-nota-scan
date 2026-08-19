@@ -649,6 +649,17 @@ function NotaTool() {
     }
   };
 
+  // Após cada importação, varre a base salva e identifica os CEPs faltantes
+  useEffect(() => {
+    if (!pendingCepSweepRef.current) return;
+    if (processing || loadingRecords || cepRunning) return;
+    if (records.length === 0) return;
+    pendingCepSweepRef.current = false;
+    if (!records.some((r) => !String(r.cep ?? "").trim())) return;
+    void handleFillCeps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, processing, loadingRecords, cepRunning]);
+
   const allEmails = useMemo(() => {
     const set = new Set<string>();
     records.forEach((r) => r.email && set.add(r.email));
