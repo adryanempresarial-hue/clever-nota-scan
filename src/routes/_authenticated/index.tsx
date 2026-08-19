@@ -28,6 +28,7 @@ import {
   ScanLine,
   Search,
   CalendarDays,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,6 +50,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
 import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
+import { fillMissingCeps } from "@/lib/cep-lookup";
 import { extractFullFromFile } from "@/lib/crm.functions";
 import { useCrmRecords, type CrmRecord } from "@/lib/crm-sync";
 
@@ -506,6 +508,7 @@ function NotaTool() {
     addMany,
     removeOne,
     clearAll,
+    updateFields,
   } = useCloudRecords();
   // Ordena por número do apartamento (HUB): 21 → 612, e o 200 sempre por último
   const records = useMemo(() => sortByApartment(rawRecords), [rawRecords]);
@@ -575,7 +578,9 @@ function NotaTool() {
 
       if (collected.length === 0) throw new Error("Nenhum dado encontrado nos arquivos");
       console.log("[NOTA] SAVED_DATA", collected);
-      const r = await addMany(collected, { force: forceReprocess });
+      // Preenche CEP faltante pelo endereço/bairro/cidade/UF antes de salvar
+      const withCep = await fillMissingCeps(collected);
+      const r = await addMany(withCep.records, { force: forceReprocess });
       setProgress(100);
       if (r) {
         const parts = [
@@ -583,6 +588,7 @@ function NotaTool() {
           r.inserted ? `${r.inserted} novo(s)` : "",
           r.updated ? `${r.updated} atualizado(s)` : "",
           r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
+          withCep.filled ? `${withCep.filled} CEP(s) identificado(s)` : "",
         ].filter(Boolean);
         toast.success(parts.length ? parts.join(" · ") : "Nada novo a salvar");
       } else {
@@ -608,6 +614,38 @@ function NotaTool() {
     handleProcess();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, processing]);
+
+  const [cepRunning, setCepRunning] = useState(false);
+  const [cepProgress, setCepProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const handleFillCeps = async () => {
+    const pending = records.filter((r) => !String(r.cep ?? "").trim());
+    if (pending.length === 0) return toast.info("Todos os registros já têm CEP");
+    setCepRunning(true);
+    setCepProgress({ done: 0, total: pending.length });
+    try {
+      const res = await fillMissingCeps(records, (done, total) =>
+        setCepProgress({ done, total }),
+      );
+      let saved = 0;
+      for (const rec of res.changed) {
+        if (rec._id && rec.cep) {
+          await updateFields(rec._id, { cep: rec.cep });
+          saved++;
+        }
+      }
+      toast.success(
+        saved
+          ? `${saved} CEP(s) identificado(s) de ${pending.length} sem CEP`
+          : "Nenhum CEP encontrado para os endereços disponíveis",
+      );
+    } catch {
+      toast.error("Falha ao consultar CEPs");
+    } finally {
+      setCepRunning(false);
+      setCepProgress(null);
+    }
+  };
 
   const allEmails = useMemo(() => {
     const set = new Set<string>();
@@ -886,6 +924,21 @@ function NotaTool() {
                     Resultados ({records.length})
                   </h2>
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFillCeps}
+                      disabled={cepRunning}
+                    >
+                      {cepRunning ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <MapPin className="w-4 h-4 mr-2" />
+                      )}
+                      {cepRunning && cepProgress
+                        ? `CEP ${cepProgress.done}/${cepProgress.total}`
+                        : "Identificar CEP faltante"}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => openExport("docx")}>
                       <FileType className="w-4 h-4 mr-2" /> Word
                     </Button>
