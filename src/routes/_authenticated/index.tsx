@@ -579,6 +579,7 @@ function NotaTool() {
       setProgress(100);
       if (r) {
         const parts = [
+          `${collected.length} linha(s) lida(s)`,
           r.inserted ? `${r.inserted} novo(s)` : "",
           r.updated ? `${r.updated} atualizado(s)` : "",
           r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
