@@ -508,6 +508,7 @@ function NotaTool() {
     addMany,
     removeOne,
     clearAll,
+    updateFields,
   } = useCloudRecords();
   // Ordena por número do apartamento (HUB): 21 → 612, e o 200 sempre por último
   const records = useMemo(() => sortByApartment(rawRecords), [rawRecords]);
@@ -577,7 +578,9 @@ function NotaTool() {
 
       if (collected.length === 0) throw new Error("Nenhum dado encontrado nos arquivos");
       console.log("[NOTA] SAVED_DATA", collected);
-      const r = await addMany(collected, { force: forceReprocess });
+      // Preenche CEP faltante pelo endereço/bairro/cidade/UF antes de salvar
+      const withCep = await fillMissingCeps(collected);
+      const r = await addMany(withCep.records, { force: forceReprocess });
       setProgress(100);
       if (r) {
         const parts = [
@@ -585,6 +588,7 @@ function NotaTool() {
           r.inserted ? `${r.inserted} novo(s)` : "",
           r.updated ? `${r.updated} atualizado(s)` : "",
           r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
+          withCep.filled ? `${withCep.filled} CEP(s) identificado(s)` : "",
         ].filter(Boolean);
         toast.success(parts.length ? parts.join(" · ") : "Nada novo a salvar");
       } else {
