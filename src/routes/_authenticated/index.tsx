@@ -616,6 +616,40 @@ function NotaTool() {
   }, [files, processing]);
 
   const allEmails = useMemo(() => {
+
+  const [cepRunning, setCepRunning] = useState(false);
+  const [cepProgress, setCepProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const handleFillCeps = async () => {
+    const pending = records.filter((r) => !String(r.cep ?? "").trim());
+    if (pending.length === 0) return toast.info("Todos os registros já têm CEP");
+    setCepRunning(true);
+    setCepProgress({ done: 0, total: pending.length });
+    try {
+      const res = await fillMissingCeps(records, (done, total) =>
+        setCepProgress({ done, total }),
+      );
+      let saved = 0;
+      for (const rec of res.changed) {
+        if (rec._id && rec.cep) {
+          await updateFields(rec._id, { cep: rec.cep });
+          saved++;
+        }
+      }
+      toast.success(
+        saved
+          ? `${saved} CEP(s) identificado(s) de ${pending.length} sem CEP`
+          : "Nenhum CEP encontrado para os endereços disponíveis",
+      );
+    } catch {
+      toast.error("Falha ao consultar CEPs");
+    } finally {
+      setCepRunning(false);
+      setCepProgress(null);
+    }
+  };
+
+  const allEmails = useMemo(() => {
     const set = new Set<string>();
     records.forEach((r) => r.email && set.add(r.email));
     return Array.from(set);
