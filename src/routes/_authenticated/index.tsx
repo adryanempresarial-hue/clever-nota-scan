@@ -501,6 +501,7 @@ function NotaTool() {
   const [autoProcess, setAutoProcess] = useState(true);
   const [forceReprocess, setForceReprocess] = useState(false);
   const pendingAutoRef = useRef(false);
+  const pendingCepSweepRef = useRef(false);
   const {
     records: rawRecords,
     loading: loadingRecords,
