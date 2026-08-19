@@ -137,20 +137,30 @@ const norm = (v?: string | null) =>
   (v ?? "").toString().replace(/\s+/g, " ").trim().toLowerCase();
 const digits = (v?: string | null) => (v ?? "").replace(/\D+/g, "");
 
-// duas fichas são "a mesma pessoa/documento" quando batem por um
-// identificador forte, ou pelo mesmo nome de arquivo
+// Duas fichas só são "a mesma" com identificador FORTE.
+// Telefone/e-mail sozinhos não bastam: hóspedes de um mesmo grupo
+// compartilham contato e as linhas seriam perdidas na importação.
 function isSameEntity(a: CloudRecord, b: NotaRecord) {
-  if (digits(a.cpf) && digits(a.cpf) === digits(b.cpf)) return true;
-  if (digits(a.cnpj) && digits(a.cnpj) === digits(b.cnpj)) return true;
-  if (norm(a.email) && norm(a.email) === norm(b.email)) return true;
-  if (digits(a.telefone) && digits(a.telefone) === digits(b.telefone)) return true;
+  const cpfA = digits(a.cpf);
+  const cpfB = digits(b.cpf);
+  if (cpfA.length >= 11 && cpfA === cpfB) return true;
+
+  const cnpjA = digits(a.cnpj);
+  const cnpjB = digits(b.cnpj);
+  if (cnpjA.length >= 14 && cnpjA === cnpjB) return true;
+
+  // mesma origem exata (mesmo arquivo + mesma linha)
   if (norm(a._arquivo) && norm(a._arquivo) === norm(b._arquivo)) return true;
-  if (
-    norm(a.nome) &&
-    norm(a.nome) === norm(b.nome) &&
-    (digits(a.cep) === digits(b.cep) || !digits(a.cep) || !digits(b.cep))
-  )
-    return true;
+
+  // mesmo nome + um segundo dado igual (documento, contato, apto ou CEP)
+  if (norm(a.nome) && norm(a.nome) === norm(b.nome)) {
+    const same =
+      (norm(a.email) && norm(a.email) === norm(b.email)) ||
+      (digits(a.telefone).length >= 8 && digits(a.telefone) === digits(b.telefone)) ||
+      (digits(a.cep).length === 8 && digits(a.cep) === digits(b.cep)) ||
+      (digits(a.numero) && digits(a.numero) === digits(b.numero));
+    if (same) return true;
+  }
   return false;
 }
 
@@ -230,10 +240,11 @@ export function useCloudRecords() {
         let skipped = 0;
 
         for (const rec of recs) {
-          const match = pool.find((p) => isSameEntity(p, rec));
+          // só compara com o que JÁ existia no banco; linhas do mesmo lote
+          // nunca se fundem entre si (cada linha = uma ficha)
+          const match = pool.find((p) => p._id && isSameEntity(p, rec));
           if (!match) {
             toCreate.push(rec);
-            pool.push({ ...(rec as CloudRecord) });
             continue;
           }
           const merged = mergeRecords(match, rec, force);
