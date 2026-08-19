@@ -50,6 +50,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
 import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
+import { fillMissingCeps } from "@/lib/cep-lookup";
 import { extractFullFromFile } from "@/lib/crm.functions";
 import { useCrmRecords, type CrmRecord } from "@/lib/crm-sync";
 
