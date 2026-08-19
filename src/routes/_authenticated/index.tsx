@@ -501,6 +501,7 @@ function NotaTool() {
   const [autoProcess, setAutoProcess] = useState(true);
   const [forceReprocess, setForceReprocess] = useState(false);
   const pendingAutoRef = useRef(false);
+  const pendingCepSweepRef = useRef(false);
   const {
     records: rawRecords,
     loading: loadingRecords,
@@ -594,6 +595,7 @@ function NotaTool() {
       } else {
         toast.success(`${collected.length} registro(s) processado(s)`);
       }
+      pendingCepSweepRef.current = true;
       setFiles([]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
@@ -646,6 +648,17 @@ function NotaTool() {
       setCepProgress(null);
     }
   };
+
+  // Após cada importação, varre a base salva e identifica os CEPs faltantes
+  useEffect(() => {
+    if (!pendingCepSweepRef.current) return;
+    if (processing || loadingRecords || cepRunning) return;
+    if (records.length === 0) return;
+    pendingCepSweepRef.current = false;
+    if (!records.some((r) => !String(r.cep ?? "").trim())) return;
+    void handleFillCeps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [records, processing, loadingRecords, cepRunning]);
 
   const allEmails = useMemo(() => {
     const set = new Set<string>();
