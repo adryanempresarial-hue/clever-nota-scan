@@ -924,6 +924,21 @@ function NotaTool() {
                     Resultados ({records.length})
                   </h2>
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFillCeps}
+                      disabled={cepRunning}
+                    >
+                      {cepRunning ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <MapPin className="w-4 h-4 mr-2" />
+                      )}
+                      {cepRunning && cepProgress
+                        ? `CEP ${cepProgress.done}/${cepProgress.total}`
+                        : "Identificar CEP faltante"}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => openExport("docx")}>
                       <FileType className="w-4 h-4 mr-2" /> Word
                     </Button>
