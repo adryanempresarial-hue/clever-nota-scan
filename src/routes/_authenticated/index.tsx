@@ -595,6 +595,7 @@ function NotaTool() {
       } else {
         toast.success(`${collected.length} registro(s) processado(s)`);
       }
+      pendingCepSweepRef.current = true;
       setFiles([]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
