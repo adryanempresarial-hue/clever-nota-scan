@@ -39,7 +39,7 @@ const SYSTEM = `Você é um extrator OCR especializado em documentos brasileiros
 EXTRAIA SEMPRE estes 6 campos prioritários, nesta ordem:
 1. nome      — nome completo da pessoa física OU razão social/nome fantasia. Prefira destinatário/cliente/tomador/contratante/titular. NUNCA deixe vazio se houver QUALQUER nome legível.
 2. cpf       — formato 000.000.000-00
-3. telefone  — formato (XX) XXXXX-XXXX (ou (XX) XXXX-XXXX para fixo)
+3. telefone  — formato (XX) XXXXX-XXXX (ou (XX) XXXX-XXXX para fixo). NUNCA inclua o código do país (+55 / 0055 / 55): retorne apenas DDD + número.
 4. email     — sempre em minúsculas
 5. cep       — formato 00000-000
 6. numero    — número do endereço (apenas o número do imóvel)
