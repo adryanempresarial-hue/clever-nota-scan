@@ -192,7 +192,12 @@ function formatCep(v: string): string {
   return `${p.slice(0, 5)}-${p.slice(5)}`;
 }
 function formatPhone(v: string): string {
-  const d = digitsOf(v);
+  let d = digitsOf(v);
+  // remove código do país (+55) e zeros de operadora/DDD
+  if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
+  while (d.length > 11 && d.startsWith("0")) d = d.slice(1);
+  if (d.length === 12 && d.startsWith("0")) d = d.slice(1);
+  if (d.length > 11) d = d.slice(-11);
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return v;
