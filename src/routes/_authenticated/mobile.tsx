@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
 import { useCloudRecords, useCloudFiles } from "@/lib/nota-sync";
+import { sanitizeRecord } from "@/lib/record-format";
 
 export const Route = createFileRoute("/_authenticated/mobile")({
   head: () => ({
@@ -449,11 +450,12 @@ function MobileScanner() {
           ],
         },
       });
-      const rec = res.records[0];
-      if (!rec) {
+      const raw = res.records[0];
+      if (!raw) {
         setStatus("Nada identificado, tente reposicionar");
         return;
       }
+      const rec = sanitizeRecord(raw);
       const hasAny = FIELD_ORDER.some((k) => rec[k]);
       if (!hasAny) {
         setStatus("Documento ilegível, ajuste a iluminação");
