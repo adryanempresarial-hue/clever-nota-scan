@@ -49,16 +49,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
-import {
-  cleanCell,
-  digitsOf,
-  formatCep,
-  formatCnpj,
-  formatCpf,
-  formatPhone,
-  sanitizeRecord,
-  titleCase,
-} from "@/lib/record-format";
+import { cleanCell, digitsOf, sanitizeRecord } from "@/lib/record-format";
 import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
 import { fillMissingCeps } from "@/lib/cep-lookup";
 import { extractFullFromFile } from "@/lib/crm.functions";
