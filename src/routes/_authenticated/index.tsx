@@ -468,8 +468,23 @@ function NotaTool() {
   } | null>(null);
   const [savingReview, setSavingReview] = useState(false);
 
+  const invalidPhoneIdx = review
+    ? review.phones.map((p, i) => ({ p, i })).filter(({ p }) => !isValidPhone(p ?? "")).map(({ i }) => i)
+    : [];
+
+  const applyPhoneToAll = (value: string) => {
+    const v = value.trim();
+    if (!v) return;
+    const masked = maskPhoneInput(v);
+    setReview((prev) => (prev ? { ...prev, phones: prev.phones.map(() => masked) } : prev));
+  };
+
   const confirmReview = async () => {
     if (!review) return;
+    if (invalidPhoneIdx.length > 0) {
+      toast.error(`Corrija ${invalidPhoneIdx.length} telefone(s) inválido(s) antes de salvar`);
+      return;
+    }
     setSavingReview(true);
     try {
       const finalRecords = review.records.map((r, i) => {
