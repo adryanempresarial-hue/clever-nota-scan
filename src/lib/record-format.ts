@@ -63,6 +63,25 @@ export function formatPhone(v: string): string {
   return v;
 }
 
+/** Máscara progressiva enquanto digita: (DD) 00000-0000 */
+export function maskPhoneInput(v: string): string {
+  let d = digitsOf(v);
+  if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
+  if (d.length > 11) d = d.slice(0, 11);
+  if (d.length === 0) return "";
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** Válido quando vazio (opcional) ou 10/11 dígitos: DDD + número. */
+export function isValidPhone(v: string): boolean {
+  const d = digitsOf(v);
+  if (!d) return true;
+  return d.length === 10 || d.length === 11;
+}
+
 /** Normaliza e limpa um registro: sem "null", CPF/CEP com zeros preservados. */
 export function sanitizeRecord<T extends NotaRecord>(rec: T): T {
   const out = { ...rec } as Record<string, unknown>;

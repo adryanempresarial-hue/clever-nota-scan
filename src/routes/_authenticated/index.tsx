@@ -49,7 +49,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
-import { cleanCell, digitsOf, formatPhone, sanitizeRecord } from "@/lib/record-format";
+import { cleanCell, digitsOf, formatPhone, isValidPhone, maskPhoneInput, sanitizeRecord } from "@/lib/record-format";
 import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
 import { fillMissingCeps } from "@/lib/cep-lookup";
 import { extractFullFromFile } from "@/lib/crm.functions";
@@ -468,8 +468,23 @@ function NotaTool() {
   } | null>(null);
   const [savingReview, setSavingReview] = useState(false);
 
+  const invalidPhoneIdx = review
+    ? review.phones.map((p, i) => ({ p, i })).filter(({ p }) => !isValidPhone(p ?? "")).map(({ i }) => i)
+    : [];
+
+  const applyPhoneToAll = (value: string) => {
+    const v = value.trim();
+    if (!v) return;
+    const masked = maskPhoneInput(v);
+    setReview((prev) => (prev ? { ...prev, phones: prev.phones.map(() => masked) } : prev));
+  };
+
   const confirmReview = async () => {
     if (!review) return;
+    if (invalidPhoneIdx.length > 0) {
+      toast.error(`Corrija ${invalidPhoneIdx.length} telefone(s) inválido(s) antes de salvar`);
+      return;
+    }
     setSavingReview(true);
     try {
       const finalRecords = review.records.map((r, i) => {
@@ -1078,32 +1093,46 @@ function NotaTool() {
                 <div className="text-xs text-muted-foreground truncate">
                   {r.nome || "(sem nome)"} · {r._arquivo}
                 </div>
-                <Input
-                  value={review.phones[i] ?? ""}
-                  placeholder="(00) 00000-0000"
-                  onChange={(e) =>
-                    setReview((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            phones: prev.phones.map((p, j) => (j === i ? e.target.value : p)),
-                          }
-                        : prev,
-                    )
-                  }
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (!v) return;
-                    setReview((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            phones: prev.phones.map((p, j) => (j === i ? formatPhone(v) : p)),
-                          }
-                        : prev,
-                    );
-                  }}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={review.phones[i] ?? ""}
+                    placeholder="(00) 00000-0000"
+                    inputMode="tel"
+                    className={
+                      !isValidPhone(review.phones[i] ?? "")
+                        ? "border-destructive focus-visible:ring-destructive"
+                        : undefined
+                    }
+                    onChange={(e) =>
+                      setReview((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              phones: prev.phones.map((p, j) =>
+                                j === i ? maskPhoneInput(e.target.value) : p,
+                              ),
+                            }
+                          : prev,
+                      )
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={!isValidPhone(review.phones[i] ?? "") || !(review.phones[i] ?? "").trim()}
+                    onClick={() => applyPhoneToAll(review.phones[i] ?? "")}
+                    title="Aplicar este número a todos os registros"
+                  >
+                    Aplicar a todos
+                  </Button>
+                </div>
+                {!isValidPhone(review.phones[i] ?? "") && (
+                  <div className="text-xs text-destructive">
+                    Formato inválido — use DDD + número, ex: (11) 91234-5678
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1111,7 +1140,7 @@ function NotaTool() {
             <Button variant="outline" disabled={savingReview} onClick={() => setReview(null)}>
               Cancelar
             </Button>
-            <Button onClick={confirmReview} disabled={savingReview}>
+            <Button onClick={confirmReview} disabled={savingReview || invalidPhoneIdx.length > 0}>
               {savingReview ? "Salvando..." : "Salvar registros"}
             </Button>
           </DialogFooter>
