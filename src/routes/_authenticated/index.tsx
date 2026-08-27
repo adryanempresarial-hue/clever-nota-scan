@@ -1064,6 +1064,60 @@ function NotaTool() {
         </Tabs>
       </main>
 
+      <Dialog open={!!review} onOpenChange={(o) => !o && !savingReview && setReview(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Conferir telefone/celular</DialogTitle>
+            <DialogDescription>
+              Ajuste os números identificados antes de salvar no histórico e na nuvem.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] overflow-y-auto space-y-3 pr-1">
+            {review?.records.map((r, i) => (
+              <div key={`${r._arquivo}-${i}`} className="space-y-1">
+                <div className="text-xs text-muted-foreground truncate">
+                  {r.nome || "(sem nome)"} · {r._arquivo}
+                </div>
+                <Input
+                  value={review.phones[i] ?? ""}
+                  placeholder="(00) 00000-0000"
+                  onChange={(e) =>
+                    setReview((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            phones: prev.phones.map((p, j) => (j === i ? e.target.value : p)),
+                          }
+                        : prev,
+                    )
+                  }
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (!v) return;
+                    setReview((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            phones: prev.phones.map((p, j) => (j === i ? formatPhone(v) : p)),
+                          }
+                        : prev,
+                    );
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={savingReview} onClick={() => setReview(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmReview} disabled={savingReview}>
+              {savingReview ? "Salvando..." : "Salvar registros"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!exportDialog} onOpenChange={(o) => !o && setExportDialog(null)}>
         <DialogContent>
           <DialogHeader>
