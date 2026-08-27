@@ -49,7 +49,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
-import { cleanCell, digitsOf, sanitizeRecord } from "@/lib/record-format";
+import { cleanCell, digitsOf, formatPhone, sanitizeRecord } from "@/lib/record-format";
 import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/nota-sync";
 import { fillMissingCeps } from "@/lib/cep-lookup";
 import { extractFullFromFile } from "@/lib/crm.functions";
@@ -461,6 +461,42 @@ function NotaTool() {
     emailsOnly: boolean;
   } | null>(null);
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
+  const [review, setReview] = useState<{
+    records: NotaRecord[];
+    phones: string[];
+    cepsFilled: number;
+  } | null>(null);
+  const [savingReview, setSavingReview] = useState(false);
+
+  const confirmReview = async () => {
+    if (!review) return;
+    setSavingReview(true);
+    try {
+      const finalRecords = review.records.map((r, i) => {
+        const raw = (review.phones[i] ?? "").trim();
+        return { ...r, telefone: raw ? formatPhone(raw) : null };
+      });
+      const r = await addMany(finalRecords, { force: forceReprocess });
+      if (r) {
+        const parts = [
+          `${finalRecords.length} linha(s) lida(s)`,
+          r.inserted ? `${r.inserted} novo(s)` : "",
+          r.updated ? `${r.updated} atualizado(s)` : "",
+          r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
+          review.cepsFilled ? `${review.cepsFilled} CEP(s) identificado(s)` : "",
+        ].filter(Boolean);
+        toast.success(parts.length ? parts.join(" · ") : "Nada novo a salvar");
+      } else {
+        toast.success(`${finalRecords.length} registro(s) salvo(s)`);
+      }
+      pendingCepSweepRef.current = true;
+      setReview(null);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar");
+    } finally {
+      setSavingReview(false);
+    }
+  };
   const inputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
@@ -514,21 +550,13 @@ function NotaTool() {
       console.log("[NOTA] SAVED_DATA", collected);
       // Preenche CEP faltante pelo endereço/bairro/cidade/UF antes de salvar
       const withCep = await fillMissingCeps(collected);
-      const r = await addMany(withCep.records, { force: forceReprocess });
       setProgress(100);
-      if (r) {
-        const parts = [
-          `${collected.length} linha(s) lida(s)`,
-          r.inserted ? `${r.inserted} novo(s)` : "",
-          r.updated ? `${r.updated} atualizado(s)` : "",
-          r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
-          withCep.filled ? `${withCep.filled} CEP(s) identificado(s)` : "",
-        ].filter(Boolean);
-        toast.success(parts.length ? parts.join(" · ") : "Nada novo a salvar");
-      } else {
-        toast.success(`${collected.length} registro(s) processado(s)`);
-      }
-      pendingCepSweepRef.current = true;
+      // Revisão do telefone/celular antes de gravar no histórico e na nuvem
+      setReview({
+        records: withCep.records,
+        phones: withCep.records.map((r) => r.telefone ?? ""),
+        cepsFilled: withCep.filled,
+      });
       setFiles([]);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
@@ -1035,6 +1063,60 @@ function NotaTool() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <Dialog open={!!review} onOpenChange={(o) => !o && !savingReview && setReview(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Conferir telefone/celular</DialogTitle>
+            <DialogDescription>
+              Ajuste os números identificados antes de salvar no histórico e na nuvem.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] overflow-y-auto space-y-3 pr-1">
+            {review?.records.map((r, i) => (
+              <div key={`${r._arquivo}-${i}`} className="space-y-1">
+                <div className="text-xs text-muted-foreground truncate">
+                  {r.nome || "(sem nome)"} · {r._arquivo}
+                </div>
+                <Input
+                  value={review.phones[i] ?? ""}
+                  placeholder="(00) 00000-0000"
+                  onChange={(e) =>
+                    setReview((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            phones: prev.phones.map((p, j) => (j === i ? e.target.value : p)),
+                          }
+                        : prev,
+                    )
+                  }
+                  onBlur={(e) => {
+                    const v = e.target.value.trim();
+                    if (!v) return;
+                    setReview((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            phones: prev.phones.map((p, j) => (j === i ? formatPhone(v) : p)),
+                          }
+                        : prev,
+                    );
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={savingReview} onClick={() => setReview(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmReview} disabled={savingReview}>
+              {savingReview ? "Salvando..." : "Salvar registros"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!exportDialog} onOpenChange={(o) => !o && setExportDialog(null)}>
         <DialogContent>
