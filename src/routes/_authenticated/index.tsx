@@ -517,13 +517,24 @@ function NotaTool() {
       // Preenche CEP faltante pelo endereço/bairro/cidade/UF antes de salvar
       const withCep = await fillMissingCeps(collected);
       setProgress(100);
-      // Revisão do telefone/celular antes de gravar no histórico e na nuvem
-      setReview({
-        records: withCep.records,
-        phones: withCep.records.map((r) => r.telefone ?? ""),
-        cepsFilled: withCep.filled,
+      // Correção automática dos telefones (sem confirmação) e gravação direta
+      const finalRecords = withCep.records.map((r) => {
+        const raw = String(r.telefone ?? "").trim();
+        const fixed = raw ? formatPhone(raw) : "";
+        return { ...r, telefone: fixed && isValidPhone(fixed) ? fixed : null };
       });
+      const res = await addMany(finalRecords, { force: forceReprocess });
+      const parts = [
+        `${finalRecords.length} linha(s) lida(s)`,
+        res?.inserted ? `${res.inserted} novo(s)` : "",
+        res?.updated ? `${res.updated} atualizado(s)` : "",
+        res?.skipped ? `${res.skipped} duplicado(s) ignorado(s)` : "",
+        withCep.filled ? `${withCep.filled} CEP(s) identificado(s)` : "",
+      ].filter(Boolean);
+      toast.success(parts.join(" · "));
+      pendingCepSweepRef.current = true;
       setFiles([]);
+
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
       toast.error(msg);
