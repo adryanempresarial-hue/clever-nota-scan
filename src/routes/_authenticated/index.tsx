@@ -461,57 +461,8 @@ function NotaTool() {
     emailsOnly: boolean;
   } | null>(null);
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
-  const [review, setReview] = useState<{
-    records: NotaRecord[];
-    phones: string[];
-    cepsFilled: number;
-  } | null>(null);
   const [savingReview, setSavingReview] = useState(false);
 
-  const invalidPhoneIdx = review
-    ? review.phones.map((p, i) => ({ p, i })).filter(({ p }) => !isValidPhone(p ?? "")).map(({ i }) => i)
-    : [];
-
-  const applyPhoneToAll = (value: string) => {
-    const v = value.trim();
-    if (!v) return;
-    const masked = maskPhoneInput(v);
-    setReview((prev) => (prev ? { ...prev, phones: prev.phones.map(() => masked) } : prev));
-  };
-
-  const confirmReview = async () => {
-    if (!review) return;
-    if (invalidPhoneIdx.length > 0) {
-      toast.error(`Corrija ${invalidPhoneIdx.length} telefone(s) inválido(s) antes de salvar`);
-      return;
-    }
-    setSavingReview(true);
-    try {
-      const finalRecords = review.records.map((r, i) => {
-        const raw = (review.phones[i] ?? "").trim();
-        return { ...r, telefone: raw ? formatPhone(raw) : null };
-      });
-      const r = await addMany(finalRecords, { force: forceReprocess });
-      if (r) {
-        const parts = [
-          `${finalRecords.length} linha(s) lida(s)`,
-          r.inserted ? `${r.inserted} novo(s)` : "",
-          r.updated ? `${r.updated} atualizado(s)` : "",
-          r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
-          review.cepsFilled ? `${review.cepsFilled} CEP(s) identificado(s)` : "",
-        ].filter(Boolean);
-        toast.success(parts.length ? parts.join(" · ") : "Nada novo a salvar");
-      } else {
-        toast.success(`${finalRecords.length} registro(s) salvo(s)`);
-      }
-      pendingCepSweepRef.current = true;
-      setReview(null);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Falha ao salvar");
-    } finally {
-      setSavingReview(false);
-    }
-  };
   const inputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
