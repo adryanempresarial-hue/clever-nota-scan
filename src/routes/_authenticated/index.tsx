@@ -1874,6 +1874,38 @@ function PhonesTab({
     }
   };
 
+  const [fixing, setFixing] = useState<{ done: number; total: number } | null>(null);
+
+  /** Reprocessa TODOS os telefones já salvos: remove +55, zeros e aplica a máscara. */
+  const fixAllPhones = async () => {
+    const pending = records
+      .filter((r) => r._id && String(r.telefone ?? "").trim())
+      .map((r) => {
+        const cur = String(r.telefone).trim();
+        const fixed = formatPhone(cur);
+        return { id: r._id as string, cur, next: isValidPhone(fixed) ? fixed : null };
+      })
+      .filter((p) => (p.next ?? "") !== p.cur);
+    if (pending.length === 0) {
+      toast.success("Todos os números já estão no formato correto");
+      return;
+    }
+    setFixing({ done: 0, total: pending.length });
+    let ok = 0;
+    for (const p of pending) {
+      try {
+        await onUpdatePhone(p.id, { telefone: p.next });
+        ok++;
+      } catch {
+        /* ignora e segue */
+      }
+      setFixing({ done: ok, total: pending.length });
+    }
+    setFixing(null);
+    toast.success(`${ok} número(s) corrigido(s)`);
+  };
+
+
   const entries = useMemo<PhoneEntry[]>(() => {
     return records
       .filter((r) => r.telefone)
