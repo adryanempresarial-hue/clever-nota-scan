@@ -461,57 +461,8 @@ function NotaTool() {
     emailsOnly: boolean;
   } | null>(null);
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
-  const [review, setReview] = useState<{
-    records: NotaRecord[];
-    phones: string[];
-    cepsFilled: number;
-  } | null>(null);
-  const [savingReview, setSavingReview] = useState(false);
+  
 
-  const invalidPhoneIdx = review
-    ? review.phones.map((p, i) => ({ p, i })).filter(({ p }) => !isValidPhone(p ?? "")).map(({ i }) => i)
-    : [];
-
-  const applyPhoneToAll = (value: string) => {
-    const v = value.trim();
-    if (!v) return;
-    const masked = maskPhoneInput(v);
-    setReview((prev) => (prev ? { ...prev, phones: prev.phones.map(() => masked) } : prev));
-  };
-
-  const confirmReview = async () => {
-    if (!review) return;
-    if (invalidPhoneIdx.length > 0) {
-      toast.error(`Corrija ${invalidPhoneIdx.length} telefone(s) inválido(s) antes de salvar`);
-      return;
-    }
-    setSavingReview(true);
-    try {
-      const finalRecords = review.records.map((r, i) => {
-        const raw = (review.phones[i] ?? "").trim();
-        return { ...r, telefone: raw ? formatPhone(raw) : null };
-      });
-      const r = await addMany(finalRecords, { force: forceReprocess });
-      if (r) {
-        const parts = [
-          `${finalRecords.length} linha(s) lida(s)`,
-          r.inserted ? `${r.inserted} novo(s)` : "",
-          r.updated ? `${r.updated} atualizado(s)` : "",
-          r.skipped ? `${r.skipped} duplicado(s) ignorado(s)` : "",
-          review.cepsFilled ? `${review.cepsFilled} CEP(s) identificado(s)` : "",
-        ].filter(Boolean);
-        toast.success(parts.length ? parts.join(" · ") : "Nada novo a salvar");
-      } else {
-        toast.success(`${finalRecords.length} registro(s) salvo(s)`);
-      }
-      pendingCepSweepRef.current = true;
-      setReview(null);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Falha ao salvar");
-    } finally {
-      setSavingReview(false);
-    }
-  };
   const inputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
   const extract = useServerFn(extractFromFiles);
@@ -566,13 +517,24 @@ function NotaTool() {
       // Preenche CEP faltante pelo endereço/bairro/cidade/UF antes de salvar
       const withCep = await fillMissingCeps(collected);
       setProgress(100);
-      // Revisão do telefone/celular antes de gravar no histórico e na nuvem
-      setReview({
-        records: withCep.records,
-        phones: withCep.records.map((r) => r.telefone ?? ""),
-        cepsFilled: withCep.filled,
+      // Correção automática dos telefones (sem confirmação) e gravação direta
+      const finalRecords = withCep.records.map((r) => {
+        const raw = String(r.telefone ?? "").trim();
+        const fixed = raw ? formatPhone(raw) : "";
+        return { ...r, telefone: fixed && isValidPhone(fixed) ? fixed : null };
       });
+      const res = await addMany(finalRecords, { force: forceReprocess });
+      const parts = [
+        `${finalRecords.length} linha(s) lida(s)`,
+        res?.inserted ? `${res.inserted} novo(s)` : "",
+        res?.updated ? `${res.updated} atualizado(s)` : "",
+        res?.skipped ? `${res.skipped} duplicado(s) ignorado(s)` : "",
+        withCep.filled ? `${withCep.filled} CEP(s) identificado(s)` : "",
+      ].filter(Boolean);
+      toast.success(parts.join(" · "));
+      pendingCepSweepRef.current = true;
       setFiles([]);
+
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Falha ao processar";
       toast.error(msg);
@@ -1027,7 +989,7 @@ function NotaTool() {
           </TabsContent>
 
           <TabsContent value="numeros">
-            <PhonesTab records={records} onSaveFile={saveFile} />
+            <PhonesTab records={records} onSaveFile={saveFile} onUpdatePhone={updateFields} />
           </TabsContent>
 
           <TabsContent value="crm">
@@ -1079,73 +1041,8 @@ function NotaTool() {
         </Tabs>
       </main>
 
-      <Dialog open={!!review} onOpenChange={(o) => !o && !savingReview && setReview(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Conferir telefone/celular</DialogTitle>
-            <DialogDescription>
-              Ajuste os números identificados antes de salvar no histórico e na nuvem.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[55vh] overflow-y-auto space-y-3 pr-1">
-            {review?.records.map((r, i) => (
-              <div key={`${r._arquivo}-${i}`} className="space-y-1">
-                <div className="text-xs text-muted-foreground truncate">
-                  {r.nome || "(sem nome)"} · {r._arquivo}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={review.phones[i] ?? ""}
-                    placeholder="(00) 00000-0000"
-                    inputMode="tel"
-                    className={
-                      !isValidPhone(review.phones[i] ?? "")
-                        ? "border-destructive focus-visible:ring-destructive"
-                        : undefined
-                    }
-                    onChange={(e) =>
-                      setReview((prev) =>
-                        prev
-                          ? {
-                              ...prev,
-                              phones: prev.phones.map((p, j) =>
-                                j === i ? maskPhoneInput(e.target.value) : p,
-                              ),
-                            }
-                          : prev,
-                      )
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    disabled={!isValidPhone(review.phones[i] ?? "") || !(review.phones[i] ?? "").trim()}
-                    onClick={() => applyPhoneToAll(review.phones[i] ?? "")}
-                    title="Aplicar este número a todos os registros"
-                  >
-                    Aplicar a todos
-                  </Button>
-                </div>
-                {!isValidPhone(review.phones[i] ?? "") && (
-                  <div className="text-xs text-destructive">
-                    Formato inválido — use DDD + número, ex: (11) 91234-5678
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" disabled={savingReview} onClick={() => setReview(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmReview} disabled={savingReview || invalidPhoneIdx.length > 0}>
-              {savingReview ? "Salvando..." : "Salvar registros"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+
 
       <Dialog open={!!exportDialog} onOpenChange={(o) => !o && setExportDialog(null)}>
         <DialogContent>
@@ -1937,14 +1834,16 @@ function EmailsTab({
 
 // ---------- Aba de Números (telefones) com filtro por data ----------
 
-type PhoneEntry = { telefone: string; nome: string; date: Date; arquivo: string };
+type PhoneEntry = { id?: string; telefone: string; nome: string; date: Date; arquivo: string };
 
 function PhonesTab({
   records,
   onSaveFile,
+  onUpdatePhone,
 }: {
   records: (NotaRecord & { _id?: string; _createdAt?: string })[];
   onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+  onUpdatePhone: (id: string, patch: { telefone: string | null }) => Promise<void>;
 }) {
   const today = useMemo(() => toLocalDateInput(new Date()), []);
   const [from, setFrom] = useState<string>(today);
@@ -1953,17 +1852,40 @@ function PhonesTab({
   const [title, setTitle] = useState<string>("D4S · NOTA — Números");
   const [subtitle, setSubtitle] = useState<string>("");
   const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const v = editing.value.trim();
+    if (!isValidPhone(v)) {
+      toast.error("Formato inválido — use DDD + número, ex: (11) 91234-5678");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await onUpdatePhone(editing.id, { telefone: v ? formatPhone(v) : null });
+      toast.success("Telefone atualizado");
+      setEditing(null);
+    } catch {
+      toast.error("Falha ao atualizar telefone");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const entries = useMemo<PhoneEntry[]>(() => {
     return records
       .filter((r) => r.telefone)
       .map((r) => ({
+        id: r._id,
         telefone: r.telefone as string,
         nome: r.nome ?? "",
         arquivo: r._arquivo ?? "",
         date: r._createdAt ? new Date(r._createdAt) : new Date(0),
       }));
   }, [records]);
+
 
   const filtered = useMemo(() => {
     const start = from ? new Date(`${from}T00:00:00`) : null;
@@ -2142,25 +2064,81 @@ function PhonesTab({
           {filtered.map((e, i) => (
             <div key={i} className="p-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium truncate">{e.telefone}</div>
+                {editing && editing.id === e.id ? (
+                  <div className="space-y-1">
+                    <Input
+                      autoFocus
+                      value={editing.value}
+                      inputMode="tel"
+                      placeholder="(00) 00000-0000"
+                      className={
+                        !isValidPhone(editing.value)
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : undefined
+                      }
+                      onChange={(ev) =>
+                        setEditing({ id: e.id!, value: maskPhoneInput(ev.target.value) })
+                      }
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter") saveEdit();
+                        if (ev.key === "Escape") setEditing(null);
+                      }}
+                    />
+                    {!isValidPhone(editing.value) && (
+                      <div className="text-xs text-destructive">
+                        Formato inválido — use DDD + número
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm font-medium truncate">{e.telefone}</div>
+                )}
                 <div className="text-xs text-muted-foreground truncate">
                   {e.nome || "Sem nome"} ·{" "}
                   {e.date.getTime() > 0 ? e.date.toLocaleString("pt-BR") : "—"}
                 </div>
               </div>
-              <CopyButton value={e.telefone} label="telefone" />
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Remover número da lista"
-                onClick={() =>
-                  setRemoved((prev) => new Set(prev).add(e.telefone.replace(/\D+/g, "")))
-                }
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </Button>
+              {editing && editing.id === e.id ? (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={savingEdit || !isValidPhone(editing.value)}
+                    onClick={saveEdit}
+                  >
+                    {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditing(null)}>
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {e.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Editar telefone"
+                      onClick={() => setEditing({ id: e.id!, value: maskPhoneInput(e.telefone) })}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <CopyButton value={e.telefone} label="telefone" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remover número da lista"
+                    onClick={() =>
+                      setRemoved((prev) => new Set(prev).add(e.telefone.replace(/\D+/g, "")))
+                    }
+                  >
+                    <X className="w-4 h-4 text-destructive" />
+                  </Button>
+                </>
+              )}
             </div>
           ))}
+
         </Card>
       )}
     </div>

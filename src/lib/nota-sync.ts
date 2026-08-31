@@ -293,11 +293,39 @@ export function useCloudRecords() {
     async (recordId: string, patch: Partial<Record<(typeof DB_COLS)[number], string | null>>) => {
       await supabase.from("nota_records").update(patch as never).eq("id", recordId);
       setRecords((prev) =>
-        prev.map((r) => (r._id === recordId ? { ...r, ...(patch.cep ? { cep: patch.cep } : {}) } : r)),
+        prev.map((r) =>
+          r._id === recordId
+            ? (mapRow({
+                ...{
+                  id: r._id,
+                  created_at: r._createdAt,
+                  arquivo: r._arquivo,
+                  dt_alteracao: r.dtAlteracao,
+                  dt_cadastro: r.dtCadastro,
+                  nome: r.nome,
+                  cpf: r.cpf,
+                  cnpj: r.cnpj,
+                  email: r.email,
+                  telefone: r.telefone,
+                  cep: r.cep,
+                  endereco: r.endereco,
+                  numero: r.numero,
+                  bairro: r.bairro,
+                  cidade: r.cidade,
+                  estado: r.estado,
+                  nota_fiscal: r.notaFiscal,
+                  data: r.data,
+                  valor: r.valor,
+                },
+                ...patch,
+              }) as CloudRecord)
+            : r,
+        ),
       );
     },
     [],
   );
+
 
   const clearAll = useCallback(async () => {
     const id = userIdRef.current ?? (await uid());
