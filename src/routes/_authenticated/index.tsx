@@ -1834,14 +1834,16 @@ function EmailsTab({
 
 // ---------- Aba de Números (telefones) com filtro por data ----------
 
-type PhoneEntry = { telefone: string; nome: string; date: Date; arquivo: string };
+type PhoneEntry = { id?: string; telefone: string; nome: string; date: Date; arquivo: string };
 
 function PhonesTab({
   records,
   onSaveFile,
+  onUpdatePhone,
 }: {
   records: (NotaRecord & { _id?: string; _createdAt?: string })[];
   onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+  onUpdatePhone: (id: string, patch: { telefone: string | null }) => Promise<void>;
 }) {
   const today = useMemo(() => toLocalDateInput(new Date()), []);
   const [from, setFrom] = useState<string>(today);
@@ -1850,17 +1852,40 @@ function PhonesTab({
   const [title, setTitle] = useState<string>("D4S · NOTA — Números");
   const [subtitle, setSubtitle] = useState<string>("");
   const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const v = editing.value.trim();
+    if (!isValidPhone(v)) {
+      toast.error("Formato inválido — use DDD + número, ex: (11) 91234-5678");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await onUpdatePhone(editing.id, { telefone: v ? formatPhone(v) : null });
+      toast.success("Telefone atualizado");
+      setEditing(null);
+    } catch {
+      toast.error("Falha ao atualizar telefone");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const entries = useMemo<PhoneEntry[]>(() => {
     return records
       .filter((r) => r.telefone)
       .map((r) => ({
+        id: r._id,
         telefone: r.telefone as string,
         nome: r.nome ?? "",
         arquivo: r._arquivo ?? "",
         date: r._createdAt ? new Date(r._createdAt) : new Date(0),
       }));
   }, [records]);
+
 
   const filtered = useMemo(() => {
     const start = from ? new Date(`${from}T00:00:00`) : null;
