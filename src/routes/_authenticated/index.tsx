@@ -461,7 +461,7 @@ function NotaTool() {
     emailsOnly: boolean;
   } | null>(null);
   const [exportMode, setExportMode] = useState<"new" | "append">("new");
-  const [savingReview, setSavingReview] = useState(false);
+  
 
   const inputRef = useRef<HTMLInputElement>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
