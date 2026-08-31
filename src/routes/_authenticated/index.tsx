@@ -2067,9 +2067,24 @@ function PhonesTab({
           {filtered.length} número(s) no período
         </h2>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fixAllPhones}
+            disabled={!!fixing || records.length === 0}
+            title="Reprocessa todos os números já salvos"
+          >
+            {fixing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Phone className="w-4 h-4 mr-2" />
+            )}
+            {fixing ? `Corrigindo ${fixing.done}/${fixing.total}` : "Corrigir todos os números"}
+          </Button>
           <Button variant="outline" size="sm" onClick={copyAll} disabled={filtered.length === 0}>
             <Copy className="w-4 h-4 mr-2" /> Copiar todos
           </Button>
+
           {removed.size > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setRemoved(new Set())}>
               Restaurar removidos ({removed.size})
