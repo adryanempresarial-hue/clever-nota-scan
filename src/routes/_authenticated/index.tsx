@@ -989,7 +989,7 @@ function NotaTool() {
           </TabsContent>
 
           <TabsContent value="numeros">
-            <PhonesTab records={records} onSaveFile={saveFile} />
+            <PhonesTab records={records} onSaveFile={saveFile} onUpdatePhone={updateFields} />
           </TabsContent>
 
           <TabsContent value="crm">
