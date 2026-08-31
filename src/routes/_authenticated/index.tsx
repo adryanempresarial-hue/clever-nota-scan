@@ -2064,25 +2064,81 @@ function PhonesTab({
           {filtered.map((e, i) => (
             <div key={i} className="p-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium truncate">{e.telefone}</div>
+                {editing && editing.id === e.id ? (
+                  <div className="space-y-1">
+                    <Input
+                      autoFocus
+                      value={editing.value}
+                      inputMode="tel"
+                      placeholder="(00) 00000-0000"
+                      className={
+                        !isValidPhone(editing.value)
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : undefined
+                      }
+                      onChange={(ev) =>
+                        setEditing({ id: e.id!, value: maskPhoneInput(ev.target.value) })
+                      }
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter") saveEdit();
+                        if (ev.key === "Escape") setEditing(null);
+                      }}
+                    />
+                    {!isValidPhone(editing.value) && (
+                      <div className="text-xs text-destructive">
+                        Formato inválido — use DDD + número
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm font-medium truncate">{e.telefone}</div>
+                )}
                 <div className="text-xs text-muted-foreground truncate">
                   {e.nome || "Sem nome"} ·{" "}
                   {e.date.getTime() > 0 ? e.date.toLocaleString("pt-BR") : "—"}
                 </div>
               </div>
-              <CopyButton value={e.telefone} label="telefone" />
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Remover número da lista"
-                onClick={() =>
-                  setRemoved((prev) => new Set(prev).add(e.telefone.replace(/\D+/g, "")))
-                }
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </Button>
+              {editing && editing.id === e.id ? (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={savingEdit || !isValidPhone(editing.value)}
+                    onClick={saveEdit}
+                  >
+                    {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditing(null)}>
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {e.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Editar telefone"
+                      onClick={() => setEditing({ id: e.id!, value: maskPhoneInput(e.telefone) })}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <CopyButton value={e.telefone} label="telefone" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remover número da lista"
+                    onClick={() =>
+                      setRemoved((prev) => new Set(prev).add(e.telefone.replace(/\D+/g, "")))
+                    }
+                  >
+                    <X className="w-4 h-4 text-destructive" />
+                  </Button>
+                </>
+              )}
             </div>
           ))}
+
         </Card>
       )}
     </div>
