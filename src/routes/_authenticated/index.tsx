@@ -994,7 +994,7 @@ function NotaTool() {
           </TabsContent>
 
           <TabsContent value="emails">
-            <EmailsTab records={records} onSaveFile={saveFile} />
+            <EmailsTab records={records} onSaveFile={saveFile} onUpdateEmail={updateFields} />
           </TabsContent>
 
           <TabsContent value="numeros">
@@ -1607,14 +1607,18 @@ function toLocalDateInput(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-type EmailEntry = { email: string; nome: string; date: Date; arquivo: string };
+type EmailEntry = { id?: string; email: string; nome: string; date: Date; arquivo: string };
+
+const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 function EmailsTab({
   records,
   onSaveFile,
+  onUpdateEmail,
 }: {
   records: (NotaRecord & { _id?: string; _createdAt?: string })[];
   onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+  onUpdateEmail: (id: string, patch: { email: string | null }) => Promise<void>;
 }) {
   const today = useMemo(() => toLocalDateInput(new Date()), []);
   const [from, setFrom] = useState<string>(today);
@@ -1623,11 +1627,33 @@ function EmailsTab({
   const [title, setTitle] = useState<string>("D4S · NOTA — E-mails");
   const [subtitle, setSubtitle] = useState<string>("");
   const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const v = editing.value.trim().toLowerCase();
+    if (!isValidEmail(v)) {
+      toast.error("E-mail inválido");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await onUpdateEmail(editing.id, { email: v || null });
+      toast.success("E-mail atualizado");
+      setEditing(null);
+    } catch {
+      toast.error("Falha ao atualizar e-mail");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const entries = useMemo<EmailEntry[]>(() => {
     return records
       .filter((r) => r.email)
       .map((r) => ({
+        id: r._id,
         email: r.email as string,
         nome: r.nome ?? "",
         arquivo: r._arquivo ?? "",
@@ -1816,23 +1842,74 @@ function EmailsTab({
           {filtered.map((e, i) => (
             <div key={i} className="p-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium truncate">{e.email}</div>
+                {editing && editing.id === e.id ? (
+                  <div className="space-y-1">
+                    <Input
+                      autoFocus
+                      type="email"
+                      value={editing.value}
+                      placeholder="email@exemplo.com"
+                      className={
+                        !isValidEmail(editing.value)
+                          ? "border-destructive focus-visible:ring-destructive"
+                          : undefined
+                      }
+                      onChange={(ev) => setEditing({ id: e.id!, value: ev.target.value })}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter") saveEdit();
+                        if (ev.key === "Escape") setEditing(null);
+                      }}
+                    />
+                    {!isValidEmail(editing.value) && (
+                      <div className="text-xs text-destructive">E-mail inválido</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-sm font-medium truncate">{e.email}</div>
+                )}
                 <div className="text-xs text-muted-foreground truncate">
                   {e.nome || "Sem nome"} ·{" "}
                   {e.date.getTime() > 0 ? e.date.toLocaleString("pt-BR") : "—"}
                 </div>
               </div>
-              <CopyButton value={e.email} label="e-mail" />
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Remover e-mail da lista"
-                onClick={() =>
-                  setRemoved((prev) => new Set(prev).add(e.email.toLowerCase()))
-                }
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </Button>
+              {editing && editing.id === e.id ? (
+                <>
+                  <Button
+                    size="sm"
+                    disabled={savingEdit || !isValidEmail(editing.value)}
+                    onClick={saveEdit}
+                  >
+                    {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar"}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={savingEdit} onClick={() => setEditing(null)}>
+                    Cancelar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  {e.id && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Editar e-mail"
+                      onClick={() => setEditing({ id: e.id!, value: e.email })}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  )}
+                  <CopyButton value={e.email} label="e-mail" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remover e-mail da lista"
+                    onClick={() =>
+                      setRemoved((prev) => new Set(prev).add(e.email.toLowerCase()))
+                    }
+                  >
+                    <X className="w-4 h-4 text-destructive" />
+                  </Button>
+                </>
+              )}
             </div>
           ))}
         </Card>
