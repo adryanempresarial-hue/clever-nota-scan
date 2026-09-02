@@ -1607,14 +1607,18 @@ function toLocalDateInput(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-type EmailEntry = { email: string; nome: string; date: Date; arquivo: string };
+type EmailEntry = { id?: string; email: string; nome: string; date: Date; arquivo: string };
+
+const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
 function EmailsTab({
   records,
   onSaveFile,
+  onUpdateEmail,
 }: {
   records: (NotaRecord & { _id?: string; _createdAt?: string })[];
   onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+  onUpdateEmail: (id: string, patch: { email: string | null }) => Promise<void>;
 }) {
   const today = useMemo(() => toLocalDateInput(new Date()), []);
   const [from, setFrom] = useState<string>(today);
@@ -1623,11 +1627,33 @@ function EmailsTab({
   const [title, setTitle] = useState<string>("D4S · NOTA — E-mails");
   const [subtitle, setSubtitle] = useState<string>("");
   const [removed, setRemoved] = useState<Set<string>>(new Set());
+  const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const saveEdit = async () => {
+    if (!editing) return;
+    const v = editing.value.trim().toLowerCase();
+    if (!isValidEmail(v)) {
+      toast.error("E-mail inválido");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await onUpdateEmail(editing.id, { email: v || null });
+      toast.success("E-mail atualizado");
+      setEditing(null);
+    } catch {
+      toast.error("Falha ao atualizar e-mail");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const entries = useMemo<EmailEntry[]>(() => {
     return records
       .filter((r) => r.email)
       .map((r) => ({
+        id: r._id,
         email: r.email as string,
         nome: r.nome ?? "",
         arquivo: r._arquivo ?? "",
