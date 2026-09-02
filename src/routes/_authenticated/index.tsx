@@ -994,7 +994,7 @@ function NotaTool() {
           </TabsContent>
 
           <TabsContent value="emails">
-            <EmailsTab records={records} onSaveFile={saveFile} />
+            <EmailsTab records={records} onSaveFile={saveFile} onUpdateEmail={updateFields} />
           </TabsContent>
 
           <TabsContent value="numeros">
