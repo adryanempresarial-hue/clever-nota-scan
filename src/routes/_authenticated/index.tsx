@@ -54,6 +54,7 @@ import { useCloudRecords, useCloudFiles, signOut, type CloudFile } from "@/lib/n
 import { fillMissingCeps } from "@/lib/cep-lookup";
 import { extractFullFromFile } from "@/lib/crm.functions";
 import { useCrmRecords, type CrmRecord } from "@/lib/crm-sync";
+import ContactsTab from "@/components/ContactsTab";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -712,6 +713,10 @@ function NotaTool() {
               <FileImage className="w-4 h-4 mr-2" />
               Salvos{loadingCloud ? "" : ` (${records.length})`}
             </TabsTrigger>
+            <TabsTrigger value="fichas">
+              <Users className="w-4 h-4 mr-2" />
+              Fichas
+            </TabsTrigger>
             <TabsTrigger value="emails">
               <Mail className="w-4 h-4 mr-2" />
               E-mails
@@ -982,6 +987,10 @@ function NotaTool() {
                 ))}
               </>
             )}
+          </TabsContent>
+
+          <TabsContent value="fichas">
+            <ContactsTab records={records} onUpdate={updateFields} onRestore={addMany} />
           </TabsContent>
 
           <TabsContent value="emails">
