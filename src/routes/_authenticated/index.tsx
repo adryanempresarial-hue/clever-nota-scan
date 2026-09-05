@@ -1617,7 +1617,7 @@ function EmailsTab({
   onUpdateEmail,
 }: {
   records: (NotaRecord & { _id?: string; _createdAt?: string })[];
-  onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+  onSaveFile: (blob: Blob, name: string, kind: "pdf" | "xlsx", count: number) => Promise<void>;
   onUpdateEmail: (id: string, patch: { email: string | null }) => Promise<void>;
 }) {
   const today = useMemo(() => toLocalDateInput(new Date()), []);
@@ -1674,6 +1674,46 @@ function EmailsTab({
     if (filtered.length === 0) return toast.error("Nenhum e-mail no período");
     await navigator.clipboard.writeText(filtered.map((e) => e.email).join("\n"));
     toast.success(`${filtered.length} e-mail(s) copiado(s)`);
+  };
+
+  const exportExcel = async () => {
+    if (filtered.length === 0) return toast.error("Nenhum e-mail no período");
+    setGenerating(true);
+    try {
+      const XLSX = await import("xlsx");
+      const ws = XLSX.utils.json_to_sheet(
+        filtered.map((e) => ({
+          Data: e.date.getTime() > 0 ? e.date.toLocaleDateString("pt-BR") : "",
+          Nome: e.nome || "",
+          "E-mail": e.email,
+        })),
+      );
+      ws["!cols"] = [{ wch: 12 }, { wch: 32 }, { wch: 36 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "E-mails");
+      const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const stamp = `${from || "inicio"}_a_${to || "hoje"}`;
+      const safeTitle =
+        (title || "emails")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .slice(0, 40) || "emails";
+      const name = nextVersionedName(`${safeTitle}_${stamp}`, "xlsx", []);
+      downloadBlob(blob, name);
+      await onSaveFile(blob, name, "xlsx", filtered.length);
+      toast.success(`Excel gerado: ${name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao gerar Excel");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const exportPdf = async () => {
@@ -1821,6 +1861,14 @@ function EmailsTab({
               Restaurar removidos ({removed.size})
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportExcel}
+            disabled={filtered.length === 0 || generating}
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+          </Button>
           <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
             {generating ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -1928,7 +1976,7 @@ function PhonesTab({
   onUpdatePhone,
 }: {
   records: (NotaRecord & { _id?: string; _createdAt?: string })[];
-  onSaveFile: (blob: Blob, name: string, kind: "pdf", count: number) => Promise<void>;
+  onSaveFile: (blob: Blob, name: string, kind: "pdf" | "xlsx", count: number) => Promise<void>;
   onUpdatePhone: (id: string, patch: { telefone: string | null }) => Promise<void>;
 }) {
   const today = useMemo(() => toLocalDateInput(new Date()), []);
@@ -2018,6 +2066,46 @@ function PhonesTab({
     if (filtered.length === 0) return toast.error("Nenhum número no período");
     await navigator.clipboard.writeText(filtered.map((e) => e.telefone).join("\n"));
     toast.success(`${filtered.length} número(s) copiado(s)`);
+  };
+
+  const exportExcel = async () => {
+    if (filtered.length === 0) return toast.error("Nenhum número no período");
+    setGenerating(true);
+    try {
+      const XLSX = await import("xlsx");
+      const ws = XLSX.utils.json_to_sheet(
+        filtered.map((e) => ({
+          Data: e.date.getTime() > 0 ? e.date.toLocaleDateString("pt-BR") : "",
+          Nome: e.nome || "",
+          Telefone: e.telefone,
+        })),
+      );
+      ws["!cols"] = [{ wch: 12 }, { wch: 32 }, { wch: 18 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Números");
+      const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const stamp = `${from || "inicio"}_a_${to || "hoje"}`;
+      const safeTitle =
+        (title || "numeros")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .slice(0, 40) || "numeros";
+      const name = nextVersionedName(`${safeTitle}_${stamp}`, "xlsx", []);
+      downloadBlob(blob, name);
+      await onSaveFile(blob, name, "xlsx", filtered.length);
+      toast.success(`Excel gerado: ${name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao gerar Excel");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const exportPdf = async () => {
@@ -2176,6 +2264,14 @@ function PhonesTab({
               Restaurar removidos ({removed.size})
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportExcel}
+            disabled={filtered.length === 0 || generating}
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+          </Button>
           <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
             {generating ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
