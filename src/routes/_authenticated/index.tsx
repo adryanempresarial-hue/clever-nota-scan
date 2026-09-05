@@ -2264,6 +2264,14 @@ function PhonesTab({
               Restaurar removidos ({removed.size})
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportExcel}
+            disabled={filtered.length === 0 || generating}
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+          </Button>
           <Button size="sm" onClick={exportPdf} disabled={filtered.length === 0 || generating}>
             {generating ? (
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
