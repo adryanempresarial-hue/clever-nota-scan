@@ -146,7 +146,7 @@ function mapHeader(header: string): keyof NotaRecord | "firstName" | "lastName" 
   return null;
 }
 
-const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const looksLikeCpf = (v: string) => /^\d{11}$/.test(digitsOf(v)) && /[.\-\d]/.test(v);
 
 const looksLikeCnpj = (v: string) => /^\d{14}$/.test(digitsOf(v));
@@ -156,11 +156,41 @@ const looksLikeDate = (v: string) => /^\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}/.test(v
 const looksLikeName = (v: string) =>
   /^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'.\- ]{2,}$/.test(v.trim()) && /\s/.test(v.trim()) && !/\d/.test(v);
 
-/** Encontra a linha de cabeçalho: a primeira que casa com pelo menos 1 campo conhecido. */
+/** ---- Extratores tolerantes: acham o dado mesmo dentro de textos maiores ---- */
+const EMAIL_RE = /[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/;
+const CPF_RE = /\b\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}\b/;
+const CNPJ_RE = /\b\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2}\b/;
+const CEP_RE = /\b\d{5}[-.\s]?\d{3}\b/;
+const PHONE_RE = /(\+?55\s?)?\(?\d{2}\)?[\s.-]?\d{4,5}[\s.-]?\d{4}\b/;
+
+const findIn = (cells: string[], re: RegExp, reject?: (v: string) => boolean) => {
+  for (const cell of cells) {
+    if (reject?.(cell)) continue;
+    const m = cell.match(re);
+    if (m) return m[0];
+  }
+  return "";
+};
+
+/** Nome tolerante: aceita CAIXA ALTA, acentos e nomes de uma palavra longa. */
+const nameScore = (v: string) => {
+  const s = v.trim();
+  if (!s || /\d/.test(s) || /@/.test(s)) return 0;
+  if (!/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'.\-\s]*$/.test(s)) return 0;
+  const words = s.split(/\s+/).filter((w) => w.length > 1);
+  if (!words.length) return 0;
+  if (s.length < 3) return 0;
+  // evita rótulos genéricos
+  if (/^(sim|nao|não|total|ativo|inativo|masculino|feminino|brasil|brasileiro|brasileira|solteiro|casado|cliente|hospede|hóspede)$/i.test(s))
+    return 0;
+  return words.length >= 2 ? 3 : 1;
+};
+
+/** Cabeçalhos: procura a melhor linha e junta com a linha seguinte (cabeçalho em 2 níveis). */
 function findHeaderRow(matrix: unknown[][]): number {
-  const limit = Math.min(matrix.length, 30);
+  const limit = Math.min(matrix.length, 40);
   let best = -1;
-  let bestScore = 0;
+  let bestScore = 1;
   for (let i = 0; i < limit; i++) {
     const score = (matrix[i] ?? []).reduce<number>(
       (acc, c) => acc + (mapHeader(String(c ?? "")) ? 1 : 0),
@@ -171,13 +201,32 @@ function findHeaderRow(matrix: unknown[][]): number {
       best = i;
     }
   }
-  return bestScore > 0 ? best : -1;
+  return best;
+}
+
+function buildHeaders(matrix: unknown[][], headerRow: number): string[] {
+  if (headerRow < 0) return [];
+  const main = (matrix[headerRow] ?? []).map((c) => String(c ?? "").trim());
+  const next = (matrix[headerRow + 1] ?? []).map((c) => String(c ?? "").trim());
+  // cabeçalho em 2 linhas: completa colunas vazias com o texto da linha de baixo
+  const nextIsHeader =
+    next.length > 0 &&
+    next.some((c) => c && mapHeader(c)) &&
+    next.filter((c) => c && looksLikeName(c)).length === 0;
+  const width = Math.max(main.length, next.length);
+  const out: string[] = [];
+  for (let i = 0; i < width; i++) {
+    const a = main[i] ?? "";
+    const b = nextIsHeader ? (next[i] ?? "") : "";
+    out.push(a && b && a !== b ? `${a} ${b}` : a || b);
+  }
+  return out;
 }
 
 // Lê planilhas (xlsx/xls/csv/ods) no navegador: cada linha vira um registro
 async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
   const XLSX = await import("xlsx");
-  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
   const out: NotaRecord[] = [];
 
   for (const sheetName of wb.SheetNames) {
@@ -190,11 +239,18 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
     if (!matrix.length) continue;
 
     const headerRow = findHeaderRow(matrix);
-    const headers = headerRow >= 0 ? (matrix[headerRow] ?? []).map((c) => String(c ?? "")) : [];
+    const headers = buildHeaders(matrix, headerRow);
     const keys = headers.map(mapHeader);
+    const headerSignature = headers.map((h) => norm(h)).filter(Boolean).join("|");
     const dataRows = matrix.slice(headerRow >= 0 ? headerRow + 1 : 0);
 
     dataRows.forEach((row, i) => {
+      const allCells = row.map((c) => cleanCell(c)).filter(Boolean);
+      if (!allCells.length) return;
+      // ignora repetições do cabeçalho no meio da planilha
+      const sig = row.map((c) => norm(String(c ?? ""))).filter(Boolean).join("|");
+      if (sig && sig === headerSignature) return;
+
       const rec: NotaRecord = {
         _arquivo: `${file.name} — ${sheetName} · linha ${(headerRow >= 0 ? headerRow + 2 : 1) + i}`,
       };
@@ -203,6 +259,7 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
       let last = "";
       const leftovers: string[] = [];
       const phones: string[] = [];
+      const nameCandidates: string[] = [];
 
       row.forEach((cell, c) => {
         const val = cleanCell(cell);
@@ -233,10 +290,34 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
           }
           return;
         }
+        if (key === "nome") {
+          nameCandidates.push(val);
+          return;
+        }
         if ((rec as Record<string, unknown>)[key]) return;
         (rec as Record<string, unknown>)[key] = val;
         filled++;
       });
+
+      // Nome: junta colunas de nome (Nome + Sobrenome / Razão + Fantasia) sem duplicar
+      if (nameCandidates.length) {
+        const seen = new Set<string>();
+        const joined = nameCandidates
+          .filter((n) => {
+            const k = norm(n);
+            if (!k || seen.has(k)) return false;
+            seen.add(k);
+            return nameScore(n) > 0;
+          })
+          .join(" ")
+          .trim();
+        if (joined) {
+          rec.nome = joined;
+          filled++;
+        } else {
+          leftovers.push(...nameCandidates);
+        }
+      }
 
       if (phones.length) {
         const best =
@@ -269,45 +350,59 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
       }
 
       // Varredura final: força a captação dos campos-chave em QUALQUER célula da linha
-      const allCells = row.map((c) => cleanCell(c)).filter(Boolean);
       if (!rec.nome) {
-        const candidate = allCells.find((v) => looksLikeName(v));
-        if (candidate) {
-          rec.nome = candidate;
+        const ranked = allCells
+          .map((v) => ({ v, s: nameScore(v) }))
+          .filter((x) => x.s > 0)
+          .sort((a, b) => b.s - a.s || b.v.length - a.v.length);
+        if (ranked.length) {
+          rec.nome = ranked[0]!.v;
           filled++;
         }
       }
       if (!rec.email) {
-        const v = allCells.find(looksLikeEmail);
+        const v = findIn(allCells, EMAIL_RE);
         if (v) {
           rec.email = v;
           filled++;
         }
       }
       if (!rec.cpf) {
-        const v = allCells.find((x) => digitsOf(x).length === 11 && !/@/.test(x));
+        const v =
+          findIn(allCells, CPF_RE, (x) => /@/.test(x)) ||
+          allCells.find((x) => !/@/.test(x) && digitsOf(x).length === 11 && !looksLikeDate(x)) ||
+          // planilha cortou zeros à esquerda: 9 ou 10 dígitos puros
+          allCells.find(
+            (x) => /^\d{9,10}$/.test(x.trim()) && !looksLikeDate(x) && x.trim() !== rec.numero,
+          ) ||
+          "";
         if (v) {
           rec.cpf = v;
           filled++;
         }
       }
       if (!rec.cnpj) {
-        const v = allCells.find((x) => digitsOf(x).length === 14 && !/@/.test(x));
+        const v = findIn(allCells, CNPJ_RE, (x) => /@/.test(x));
         if (v) {
           rec.cnpj = v;
           filled++;
         }
       }
       if (!rec.cep) {
-        const v = allCells.find(looksLikeCep);
+        const v =
+          allCells.find(looksLikeCep) ||
+          findIn(allCells, CEP_RE, (x) => /@/.test(x) || looksLikeDate(x)) ||
+          "";
         if (v) {
           rec.cep = v;
           filled++;
         }
       }
       if (!rec.telefone) {
-        const v = allCells.find(
-          (x) => !looksLikeEmail(x) && !looksLikeDate(x) && [10, 11].includes(digitsOf(x).length),
+        const v = findIn(
+          allCells,
+          PHONE_RE,
+          (x) => looksLikeEmail(x) || looksLikeDate(x) || x === rec.cpf || x === rec.cep,
         );
         if (v) {
           rec.telefone = v;
@@ -322,11 +417,13 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
         }
       }
 
-      if (filled > 0) out.push(sanitizeRecord(rec));
+      // Mantém a linha mesmo se só houver 1 dado — 107 contatos = 107 registros
+      if (filled > 0 || allCells.length >= 2) out.push(sanitizeRecord(rec));
     });
   }
   return out;
 }
+
 
 const MAX_FILES = 10;
 
