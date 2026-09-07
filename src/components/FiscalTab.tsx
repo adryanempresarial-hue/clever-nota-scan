@@ -151,8 +151,96 @@ export function FiscalTab({ onSaveFile }: Props) {
     { label: "Bebidas frias (restante)", value: calc.bebidas },
   ];
 
+  const [view, setView] = useState<"geral" | "bebidas">("geral");
+
+  const exportBebidasXlsx = async () => {
+    if (!calc.total) {
+      toast.error("Informe o valor da conta");
+      return;
+    }
+    setBusy(true);
+    try {
+      const XLSX = await import("xlsx");
+      const ws = XLSX.utils.aoa_to_sheet([
+        ["BEBIDAS FRIAS"],
+        [],
+        ["Valor da conta", calc.total],
+        [`Serviço (${pctServico}%)`, calc.servico],
+        ["Base de cálculo (conta - serviço)", calc.total - calc.servico],
+        [`Bebidas frias (${100 - (parseMoney(pctAlimentacao) || 0)}% do restante)`, calc.bebidas],
+      ]);
+      ws["!cols"] = [{ wch: 40 }, { wch: 18 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Bebidas Frias");
+      const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const name = `bebidas_frias_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+      await onSaveFile(blob, name, "xlsx", 1);
+      toast.success(`Excel gerado: ${name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao gerar Excel");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex gap-2">
+        <Button
+          variant={view === "geral" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setView("geral")}
+        >
+          Cálculo geral
+        </Button>
+        <Button
+          variant={view === "bebidas" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setView("bebidas")}
+        >
+          Bebidas frias
+        </Button>
+      </div>
+
+      {view === "bebidas" ? (
+        <Card className="p-6 space-y-4">
+          <h2 className="font-semibold">Bebidas frias</h2>
+          <p className="text-sm text-muted-foreground">
+            Percentual sobre o restante: {100 - (parseMoney(pctAlimentacao) || 0)}%
+          </p>
+          <div className="flex items-center justify-between border rounded-lg p-4">
+            <span className="text-sm text-muted-foreground">Valor de bebidas frias</span>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold tabular-nums">{brl(calc.bebidas)}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  void navigator.clipboard.writeText(brl(calc.bebidas));
+                  toast.success("Copiado");
+                }}
+              >
+                <Copy className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          <Button disabled={busy || !calc.total} onClick={exportBebidasXlsx}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar Excel (bebidas frias)
+          </Button>
+        </Card>
+      ) : (
+        <>
       <Card className="p-6 space-y-5">
         <div className="flex items-center gap-2">
           <Calculator className="w-5 h-5 text-primary" />
@@ -236,6 +324,8 @@ export function FiscalTab({ onSaveFile }: Props) {
           Conferência: {calc.ok ? "VERDADEIRO" : "FALSO"}
         </p>
       </Card>
+        </>
+      )}
     </div>
   );
 }
