@@ -55,6 +55,8 @@ import { fillMissingCeps } from "@/lib/cep-lookup";
 import { extractFullFromFile } from "@/lib/crm.functions";
 import { useCrmRecords, type CrmRecord } from "@/lib/crm-sync";
 import ContactsTab from "@/components/ContactsTab";
+import { FiscalTab } from "@/components/FiscalTab";
+import { Calculator } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -822,6 +824,10 @@ function NotaTool() {
               <Phone className="w-4 h-4 mr-2" />
               Números
             </TabsTrigger>
+            <TabsTrigger value="fiscal">
+              <Calculator className="w-4 h-4 mr-2" />
+              Cálculo Fiscal
+            </TabsTrigger>
             <TabsTrigger value="crm">
               <Users className="w-4 h-4 mr-2" />
               CRM
@@ -1096,6 +1102,10 @@ function NotaTool() {
 
           <TabsContent value="numeros">
             <PhonesTab records={records} onSaveFile={saveFile} onUpdatePhone={updateFields} />
+          </TabsContent>
+
+          <TabsContent value="fiscal">
+            <FiscalTab onSaveFile={saveFile} />
           </TabsContent>
 
           <TabsContent value="crm">
