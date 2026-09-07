@@ -324,6 +324,8 @@ export function FiscalTab({ onSaveFile }: Props) {
           Conferência: {calc.ok ? "VERDADEIRO" : "FALSO"}
         </p>
       </Card>
+        </>
+      )}
     </div>
   );
 }
