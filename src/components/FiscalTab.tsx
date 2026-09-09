@@ -327,7 +327,16 @@ export function FiscalTab({ onSaveFile }: Props) {
         ))}
         <div className="flex items-center justify-between pt-2">
           <span className="font-semibold">Total</span>
-          <span className="font-semibold tabular-nums">{brl(calc.soma)}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold tabular-nums">{brl(calc.soma)}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => void copyWithToast(brl(calc.soma))}
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
         <p className={`text-xs ${calc.ok ? "text-emerald-600" : "text-destructive"}`}>
           Conferência: {calc.ok ? "VERDADEIRO" : "FALSO"}
