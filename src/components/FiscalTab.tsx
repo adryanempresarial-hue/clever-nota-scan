@@ -172,8 +172,7 @@ export function FiscalTab({ onSaveFile }: Props) {
       `Bebidas frias: ${brl(calc.bebidas)}`,
       `Total: ${brl(calc.soma)}`,
     ].join("\n");
-    await navigator.clipboard.writeText(txt);
-    toast.success("Cálculo copiado");
+    await copyWithToast(txt, "Cálculo copiado");
   };
 
   const rows = [
@@ -256,10 +255,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  void navigator.clipboard.writeText(brl(calc.bebidas));
-                  toast.success("Copiado");
-                }}
+                onClick={() => void copyWithToast(brl(calc.bebidas))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
@@ -337,10 +333,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  void navigator.clipboard.writeText(brl(r.value));
-                  toast.success("Copiado");
-                }}
+                onClick={() => void copyWithToast(brl(r.value))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
