@@ -22,6 +22,37 @@ function parseMoney(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fallthrough */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+async function copyWithToast(text: string, label = "Copiado") {
+  const ok = await copyText(text);
+  if (ok) toast.success(label);
+  else toast.error("Não foi possível copiar — selecione e copie manualmente");
+}
+
 export function FiscalTab({ onSaveFile }: Props) {
   const [valorRaw, setValorRaw] = useState("");
   const [pctServico, setPctServico] = useState("30");
@@ -141,8 +172,7 @@ export function FiscalTab({ onSaveFile }: Props) {
       `Bebidas frias: ${brl(calc.bebidas)}`,
       `Total: ${brl(calc.soma)}`,
     ].join("\n");
-    await navigator.clipboard.writeText(txt);
-    toast.success("Cálculo copiado");
+    await copyWithToast(txt, "Cálculo copiado");
   };
 
   const rows = [
@@ -225,10 +255,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  void navigator.clipboard.writeText(brl(calc.bebidas));
-                  toast.success("Copiado");
-                }}
+                onClick={() => void copyWithToast(brl(calc.bebidas))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
@@ -306,10 +333,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  void navigator.clipboard.writeText(brl(r.value));
-                  toast.success("Copiado");
-                }}
+                onClick={() => void copyWithToast(brl(r.value))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
