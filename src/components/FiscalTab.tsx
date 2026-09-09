@@ -22,6 +22,37 @@ function parseMoney(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fallthrough */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+async function copyWithToast(text: string, label = "Copiado") {
+  const ok = await copyText(text);
+  if (ok) toast.success(label);
+  else toast.error("Não foi possível copiar — selecione e copie manualmente");
+}
+
 export function FiscalTab({ onSaveFile }: Props) {
   const [valorRaw, setValorRaw] = useState("");
   const [pctServico, setPctServico] = useState("30");
