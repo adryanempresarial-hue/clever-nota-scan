@@ -164,17 +164,6 @@ export function FiscalTab({ onSaveFile }: Props) {
     }
   };
 
-  const copyAll = async () => {
-    const txt = [
-      `Valor da conta: ${brl(calc.total)}`,
-      `Serviço (${pctServico}%): ${brl(calc.servico)}`,
-      `Alimentação (${pctAlimentacao}%): ${brl(calc.alimentacao)}`,
-      `Bebidas frias: ${brl(calc.bebidas)}`,
-      `Total: ${brl(calc.soma)}`,
-    ].join("\n");
-    await copyWithToast(txt, "Cálculo copiado");
-  };
-
   const rows = [
     { label: `Serviço (${pctServico}%)`, value: calc.servico },
     { label: `Alimentação (${pctAlimentacao}% do restante)`, value: calc.alimentacao },
@@ -313,10 +302,6 @@ export function FiscalTab({ onSaveFile }: Props) {
             <Upload className="w-4 h-4 mr-2" />
             Importar planilha
           </Button>
-          <Button variant="outline" disabled={busy || !calc.total} onClick={copyAll}>
-            <Copy className="w-4 h-4 mr-2" />
-            Copiar cálculo
-          </Button>
           <Button disabled={busy || !calc.total} onClick={exportXlsx}>
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
@@ -342,7 +327,16 @@ export function FiscalTab({ onSaveFile }: Props) {
         ))}
         <div className="flex items-center justify-between pt-2">
           <span className="font-semibold">Total</span>
-          <span className="font-semibold tabular-nums">{brl(calc.soma)}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold tabular-nums">{brl(calc.soma)}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => void copyWithToast(brl(calc.soma))}
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
         <p className={`text-xs ${calc.ok ? "text-emerald-600" : "text-destructive"}`}>
           Conferência: {calc.ok ? "VERDADEIRO" : "FALSO"}
