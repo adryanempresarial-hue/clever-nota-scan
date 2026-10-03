@@ -1297,21 +1297,63 @@ const FIXED_NUMBERS: { label: string; value: string }[] = [
 const DEFAULT_MESSAGE =
   "Prestação de Serviços de Hotelaria – Período: 19 à 21 de Junho de 2026";
 
-function CopyButton({ value, label }: { value: string; label?: string }) {
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* segue para o fallback */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function CopyButton({
+  value,
+  label,
+  text,
+}: {
+  value: string;
+  label?: string;
+  text?: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
       size="sm"
       variant="outline"
       onClick={async () => {
-        await navigator.clipboard.writeText(value);
+        if (!(await copyToClipboard(value))) {
+          toast.error("Não foi possível copiar");
+          return;
+        }
         setCopied(true);
         setTimeout(() => setCopied(false), 1200);
         toast.success("Copiado");
       }}
       aria-label={`Copiar ${label ?? "valor"}`}
     >
-      {copied ? <CheckCheck className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+      {copied ? (
+        <CheckCheck className="w-4 h-4" />
+      ) : (
+        <Copy className={text ? "w-4 h-4 mr-2" : "w-4 h-4"} />
+      )}
+      {text && <span className="whitespace-nowrap">{text}</span>}
     </Button>
   );
 }
@@ -1499,9 +1541,16 @@ function QuickSnippets({
                         </div>
                       )}
                     </div>
-                    <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary rounded px-1.5 py-0.5 shrink-0">
-                      {h.source}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] uppercase tracking-wide bg-primary/10 text-primary rounded px-1.5 py-0.5">
+                        {h.source}
+                      </span>
+                      <CopyButton
+                        value={h.lines.map((l) => `${l.label}: ${l.value}`).join("\n")}
+                        label={`${h.title} completo`}
+                        text="Copiar tudo"
+                      />
+                    </div>
                   </div>
                   <div className="grid gap-1">
                     {h.lines.map((l, i) => (
