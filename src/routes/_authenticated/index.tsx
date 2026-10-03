@@ -56,7 +56,8 @@ import { extractFullFromFile } from "@/lib/crm.functions";
 import { useCrmRecords, type CrmRecord } from "@/lib/crm-sync";
 import ContactsTab from "@/components/ContactsTab";
 import { FiscalTab } from "@/components/FiscalTab";
-import { Calculator } from "lucide-react";
+import { Calculator, FileSpreadsheet } from "lucide-react";
+import { ContaAzulTab } from "@/components/ContaAzulTab";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -832,6 +833,10 @@ function NotaTool() {
               <Users className="w-4 h-4 mr-2" />
               CRM
             </TabsTrigger>
+            <TabsTrigger value="contaazul">
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Importação Conta Azul
+            </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
               Arquivos Gerados{loadingCloud ? "" : ` (${cloudFiles.length})`}
@@ -1110,6 +1115,10 @@ function NotaTool() {
 
           <TabsContent value="crm">
             <CrmTab />
+          </TabsContent>
+
+          <TabsContent value="contaazul">
+            <ContaAzulTab />
           </TabsContent>
 
           <TabsContent value="historico">
