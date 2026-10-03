@@ -9,19 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as AuthenticatedMobileRouteImport } from './routes/_authenticated/mobile'
 import { Route as AuthenticatedDownloadRouteImport } from './routes/_authenticated/download'
+import { Route as AuthenticatedMobileRouteImport } from './routes/_authenticated/mobile'
 
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
@@ -29,14 +29,14 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedMobileRoute = AuthenticatedMobileRouteImport.update({
-  id: '/mobile',
-  path: '/mobile',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedDownloadRoute = AuthenticatedDownloadRouteImport.update({
   id: '/download',
   path: '/download',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMobileRoute = AuthenticatedMobileRouteImport.update({
+  id: '/mobile',
+  path: '/mobile',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 
@@ -81,18 +81,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated': {
       id: '/_authenticated'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -102,18 +102,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/mobile': {
-      id: '/_authenticated/mobile'
-      path: '/mobile'
-      fullPath: '/mobile'
-      preLoaderRoute: typeof AuthenticatedMobileRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/download': {
       id: '/_authenticated/download'
       path: '/download'
       fullPath: '/download'
       preLoaderRoute: typeof AuthenticatedDownloadRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/mobile': {
+      id: '/_authenticated/mobile'
+      path: '/mobile'
+      fullPath: '/mobile'
+      preLoaderRoute: typeof AuthenticatedMobileRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
   }
