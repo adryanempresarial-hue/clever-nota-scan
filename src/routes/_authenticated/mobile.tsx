@@ -55,7 +55,7 @@ export const Route = createFileRoute("/_authenticated/mobile")({
   errorComponent: MobileErrorFallback,
 });
 
-function MobileErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
+function MobileErrorFallback({ error, reset }: { error: any; reset: () => void }) {
   console.error("[NOTA mobile] route error", error);
   return (
     <div className="min-h-[100dvh] flex items-center justify-center p-6 bg-background">
