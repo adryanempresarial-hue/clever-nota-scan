@@ -56,7 +56,7 @@ import { extractFullFromFile } from "@/lib/crm.functions";
 import { useCrmRecords, type CrmRecord } from "@/lib/crm-sync";
 import ContactsTab from "@/components/ContactsTab";
 import { FiscalTab } from "@/components/FiscalTab";
-import { Calculator, FileSpreadsheet } from "lucide-react";
+import { Calculator } from "lucide-react";
 import { ContaAzulTab } from "@/components/ContaAzulTab";
 
 export const Route = createFileRoute("/_authenticated/")({
