@@ -53,7 +53,14 @@ REGRA CRÍTICA PARA "nome" (nunca retorne null se houver qualquer nome no docume
 - Se aparecerem vários nomes, escolha o do cliente/hóspede/destinatário, nunca o do emitente/hotel/empresa prestadora — a menos que só exista um nome.
 - Nomes em CAIXA ALTA devem ser convertidos para Title Case.
 
-Formate CNPJ como 00.000.000/0000-00, datas como DD/MM/AAAA, valores como R$ 0,00 e estado como sigla de 2 letras (ex.: RJ, SP).`;
+Formate CNPJ como 00.000.000/0000-00, datas como DD/MM/AAAA, valores como R$ 0,00 e estado como sigla de 2 letras (ex.: RJ, SP).
+
+REGRA CRÍTICA PARA NÚMEROS (nunca abrevie):
+- Transcreva números EXATAMENTE como aparecem no documento, dígito por dígito, incluindo separadores de milhar e casas decimais.
+- Se está escrito "2.000", retorne "2.000" — NUNCA "2.0", "2" ou "2 mil".
+- Se está escrito "1.500,00", retorne "1.500,00" — NUNCA "1.5" ou "1500".
+- Proibido arredondar, truncar, abreviar (k, mil) ou converter notação. Copie o valor literalmente.
+- Isso vale para numero, valor, notaFiscal, quantidades e qualquer outro campo numérico.`;
 
 export const extractFromFiles = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => Input.parse(data))
