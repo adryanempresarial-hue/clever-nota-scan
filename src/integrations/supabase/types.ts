@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      crm_email_contacts: {
+        Row: {
+          cep: string | null
+          cpf: string | null
+          created_at: string
+          email: string | null
+          endereco: string | null
+          extra: Json | null
+          id: string
+          nome: string | null
+          origem: string | null
+          provedor: string | null
+          telefone: string | null
+          user_id: string
+        }
+        Insert: {
+          cep?: string | null
+          cpf?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          extra?: Json | null
+          id?: string
+          nome?: string | null
+          origem?: string | null
+          provedor?: string | null
+          telefone?: string | null
+          user_id: string
+        }
+        Update: {
+          cep?: string | null
+          cpf?: string | null
+          created_at?: string
+          email?: string | null
+          endereco?: string | null
+          extra?: Json | null
+          id?: string
+          nome?: string | null
+          origem?: string | null
+          provedor?: string | null
+          telefone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       crm_records: {
         Row: {
           arquivo: string
