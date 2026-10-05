@@ -29,6 +29,7 @@ import {
   Search,
   CalendarDays,
   MapPin,
+  AtSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,6 +59,7 @@ import ContactsTab from "@/components/ContactsTab";
 import { FiscalTab } from "@/components/FiscalTab";
 import { Calculator } from "lucide-react";
 import { ContaAzulTab } from "@/components/ContaAzulTab";
+import { EmailCrmTab } from "@/components/EmailCrmTab";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -837,6 +839,10 @@ function NotaTool() {
               <FileSpreadsheet className="w-4 h-4 mr-2" />
               Importação Conta Azul
             </TabsTrigger>
+            <TabsTrigger value="crmemail">
+              <AtSign className="w-4 h-4 mr-2" />
+              CRM E-mail
+            </TabsTrigger>
             <TabsTrigger value="historico">
               <History className="w-4 h-4 mr-2" />
               Arquivos Gerados{loadingCloud ? "" : ` (${cloudFiles.length})`}
@@ -1119,6 +1125,10 @@ function NotaTool() {
 
           <TabsContent value="contaazul">
             <ContaAzulTab />
+          </TabsContent>
+
+          <TabsContent value="crmemail">
+            <EmailCrmTab />
           </TabsContent>
 
           <TabsContent value="historico">
