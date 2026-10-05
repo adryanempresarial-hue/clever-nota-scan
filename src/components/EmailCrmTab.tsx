@@ -10,6 +10,9 @@ import {
   AtSign, Copy, FileSpreadsheet, Loader2, Mail, MailSearch, RefreshCw, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { getEmailProviders, scanEmailContacts } from "@/lib/email.functions";
 
@@ -170,27 +173,59 @@ export function EmailCrmTab() {
     else toast.error("Não foi possível copiar");
   };
 
-  const exportXlsx = async () => {
+  type Fmt = "xlsx" | "xls" | "csv" | "ods" | "pdf" | "docx";
+  const exportAs = async (fmt: Fmt) => {
     if (!visible.length) {
       toast.error("Nada para exportar");
       return;
     }
-    const XLSX = await import("xlsx");
-    const rows = visible.map((c) => ({
-      Nome: c.nome ?? "",
-      "E-mail": c.email ?? "",
-      Telefone: c.telefone ?? "",
-      CPF: c.cpf ?? "",
-      CEP: c.cep ?? "",
-      Origem: c.origem ?? "",
-      Provedor: c.provedor ?? "",
-      Data: new Date(c.created_at).toLocaleString("pt-BR"),
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Contatos Email");
-    XLSX.writeFile(wb, `crm_email_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success("Planilha exportada");
+    const base = `crm_email_${new Date().toISOString().slice(0, 10)}`;
+    const head = ["Nome", "E-mail", "Telefone", "CPF", "CEP", "Origem", "Provedor", "Data"];
+    const body = visible.map((c) => [
+      c.nome ?? "", c.email ?? "", c.telefone ?? "", c.cpf ?? "", c.cep ?? "",
+      c.origem ?? "", c.provedor ?? "", new Date(c.created_at).toLocaleString("pt-BR"),
+    ]);
+    try {
+      if (fmt === "pdf") {
+        const { default: jsPDF } = await import("jspdf");
+        const autoTable = (await import("jspdf-autotable")).default;
+        const doc = new jsPDF({ orientation: "landscape" });
+        doc.setFontSize(14);
+        doc.text("CRM E-mail — Contatos", 14, 14);
+        autoTable(doc, { head: [head.slice(0, 6)], body: body.map((r) => r.slice(0, 6)), startY: 20, styles: { fontSize: 8 } });
+        doc.save(`${base}.pdf`);
+      } else if (fmt === "docx") {
+        const d = await import("docx");
+        const mk = (t: string, bold = false) =>
+          new d.TableCell({ children: [new d.Paragraph({ children: [new d.TextRun({ text: t, bold, size: 18 })] })] });
+        const table = new d.Table({
+          width: { size: 100, type: d.WidthType.PERCENTAGE },
+          rows: [
+            new d.TableRow({ children: head.slice(0, 5).map((h) => mk(h, true)) }),
+            ...body.map((r) => new d.TableRow({ children: r.slice(0, 5).map((v) => mk(v)) })),
+          ],
+        });
+        const doc = new d.Document({
+          sections: [{ children: [new d.Paragraph({ text: "CRM E-mail — Contatos", heading: d.HeadingLevel.HEADING_1 }), table] }],
+        });
+        const blob = await d.Packer.toBlob(doc);
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${base}.docx`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      } else {
+        const XLSX = await import("xlsx");
+        const ws = XLSX.utils.aoa_to_sheet([head, ...body]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Contatos Email");
+        XLSX.writeFile(wb, `${base}.${fmt}`, { bookType: fmt === "csv" ? "csv" : fmt });
+      }
+      toast.success(`Arquivo ${fmt.toUpperCase()} exportado`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao exportar");
+    }
   };
 
   const configured = providers && (providers.gmail || providers.outlook);
@@ -258,9 +293,21 @@ export function EmailCrmTab() {
             <Button variant="outline" size="sm" onClick={copyAll}>
               <Copy className="h-4 w-4" /> Copiar tudo
             </Button>
-            <Button variant="outline" size="sm" onClick={exportXlsx}>
-              <FileSpreadsheet className="h-4 w-4" /> Exportar Excel
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FileSpreadsheet className="h-4 w-4" /> Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportAs("xlsx")}>Excel (.xlsx)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs("xls")}>Excel 97-2003 (.xls)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs("csv")}>CSV (.csv)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs("ods")}>OpenOffice (.ods)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs("pdf")}>PDF (.pdf)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs("docx")}>Word (.docx)</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {removed.size > 0 && (
               <Button variant="ghost" size="sm" onClick={restoreRemoved}>
                 Restaurar removidos ({removed.size})
