@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedMobileRouteImport } from './routes/_authenticated/mobile'
 import { Route as AuthenticatedDownloadRouteImport } from './routes/_authenticated/download'
+import { Route as OauthEmailReturnRouteImport } from './routes/oauth.email.return'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -39,18 +40,25 @@ const AuthenticatedDownloadRoute = AuthenticatedDownloadRouteImport.update({
   path: '/download',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const OauthEmailReturnRoute = OauthEmailReturnRouteImport.update({
+  id: '/oauth/email/return',
+  path: '/oauth/email/return',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/download': typeof AuthenticatedDownloadRoute
   '/mobile': typeof AuthenticatedMobileRoute
+  '/oauth/email/return': typeof OauthEmailReturnRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/download': typeof AuthenticatedDownloadRoute
   '/mobile': typeof AuthenticatedMobileRoute
   '/': typeof AuthenticatedIndexRoute
+  '/oauth/email/return': typeof OauthEmailReturnRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +67,13 @@ export interface FileRoutesById {
   '/_authenticated/download': typeof AuthenticatedDownloadRoute
   '/_authenticated/mobile': typeof AuthenticatedMobileRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/oauth/email/return': typeof OauthEmailReturnRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/download' | '/mobile'
+  fullPaths: '/' | '/auth' | '/download' | '/mobile' | '/oauth/email/return'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth' | '/download' | '/mobile' | '/'
+  to: '/auth' | '/download' | '/mobile' | '/' | '/oauth/email/return'
   id:
     | '__root__'
     | '/_authenticated'
@@ -72,11 +81,13 @@ export interface FileRouteTypes {
     | '/_authenticated/download'
     | '/_authenticated/mobile'
     | '/_authenticated/'
+    | '/oauth/email/return'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  OauthEmailReturnRoute: typeof OauthEmailReturnRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDownloadRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/oauth/email/return': {
+      id: '/oauth/email/return'
+      path: '/oauth/email/return'
+      fullPath: '/oauth/email/return'
+      preLoaderRoute: typeof OauthEmailReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -137,6 +155,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  OauthEmailReturnRoute: OauthEmailReturnRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
