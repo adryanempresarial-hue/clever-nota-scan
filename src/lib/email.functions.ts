@@ -233,7 +233,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
         .limit(1);
       const row = existing?.[0];
       if (row) {
-        const patch: Record<string, string> = {};
+        const patch: { nome?: string; telefone?: string; cpf?: string; cep?: string } = {};
         if (!row.nome && c.nome) patch.nome = c.nome;
         if (!row.telefone && c.telefone) patch.telefone = c.telefone;
         if (!row.cpf && c.cpf) patch.cpf = c.cpf;
