@@ -1,50 +1,128 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  authorizeAppUserOAuth, callAsAppUser, disconnectAppUser, exchangeAppUserOAuthCode,
+} from "@/integrations/lovable/appUserConnector.server";
+import {
+  deleteConnection, getConnection, saveConnection, setAccountEmail,
+} from "@/lib/appUserConnections.server";
 
-const GMAIL_GATEWAY = "https://connector-gateway.lovable.dev/google_mail";
+const GATEWAY = "https://connector-gateway.lovable.dev";
 
 type Provider = "gmail" | "outlook";
 
-function providerKey(provider: Provider): string | undefined {
-  if (provider === "gmail") return process.env.GOOGLE_MAIL_API_KEY;
-  return process.env.MICROSOFT_OUTLOOK_API_KEY;
-}
+const CONNECTOR: Record<Provider, string> = { gmail: "google_mail", outlook: "microsoft_outlook" };
+const SCOPES: Record<Provider, string[]> = {
+  gmail: [
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "https://www.googleapis.com/auth/gmail.readonly",
+  ],
+  outlook: ["offline_access", "User.Read", "Mail.Read"],
+};
+const CLIENT_ENV: Record<Provider, string> = {
+  gmail: "GOOGLE_MAIL_APP_USER_CONNECTOR_CLIENT_API_KEY",
+  outlook: "MICROSOFT_OUTLOOK_APP_USER_CONNECTOR_CLIENT_API_KEY",
+};
+const BASE_PATH: Record<Provider, string> = { gmail: "/gmail/v1", outlook: "/v1.0" };
 
-function gatewayBase(provider: Provider): string {
-  if (provider === "gmail") return `${GMAIL_GATEWAY}/gmail/v1`;
-  return `https://connector-gateway.lovable.dev/microsoft_outlook/v1.0`;
-}
+// userId do request atual, definido no handler antes de chamar gatewayFetch
+let currentKeyFor: ((p: Provider) => string) | null = null;
 
 async function gatewayFetch(provider: Provider, path: string, init?: RequestInit): Promise<Response> {
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  const connKey = providerKey(provider);
-  if (!lovableKey || !connKey) throw new Error(`Conexão ${provider} não configurada`);
-  const res = await fetch(`${gatewayBase(provider)}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": connKey,
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+  if (!currentKeyFor) throw new Error("Conta de e-mail não conectada");
+  const res = await callAsAppUser({
+    gatewayBaseUrl: GATEWAY,
+    connectionAPIKey: currentKeyFor(provider),
+    connectorId: CONNECTOR[provider],
+    path: `${BASE_PATH[provider]}${path}`,
+    init,
+    requiredScopes: SCOPES[provider],
   });
   if (!res.ok) {
     const body = await res.text();
-    console.error(`[email-crm] gateway ${provider} ${path} -> ${res.status}: ${body}`);
+    console.error(`[email-crm] ${provider} ${path} -> ${res.status}: ${body}`);
+    if (res.status === 401) throw new Error("Seu acesso ao e-mail precisa ser renovado. Clique em Entrar novamente.");
     throw new Error(`Falha ao acessar o e-mail [${res.status}]: ${body.slice(0, 300)}`);
   }
   return res;
 }
 
-/** Quais provedores estão conectados (sem expor segredos). */
+const ProviderInput = z.object({ provider: z.enum(["gmail", "outlook"]) });
+
+/** Estado do login de cada provedor para o usuário atual. */
 export const getEmailProviders = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
-    return {
-      gmail: Boolean(process.env.GOOGLE_MAIL_API_KEY),
-      outlook: Boolean(process.env.MICROSOFT_OUTLOOK_API_KEY),
+  .handler(async ({ context }) => {
+    const out: Record<Provider, { available: boolean; connected: boolean; email: string | null }> = {
+      gmail: { available: false, connected: false, email: null },
+      outlook: { available: false, connected: false, email: null },
     };
+    for (const p of ["gmail", "outlook"] as Provider[]) {
+      out[p].available = Boolean(process.env[CLIENT_ENV[p]]);
+      try {
+        const c = await getConnection(context.userId, CONNECTOR[p]);
+        if (c) { out[p].connected = true; out[p].email = c.accountEmail ?? null; }
+      } catch { /* ignora */ }
+    }
+    return out;
+  });
+
+export const startEmailLogin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => ProviderInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const clientKey = process.env[CLIENT_ENV[data.provider]];
+    if (!clientKey) throw new Error("Login deste provedor ainda não foi configurado.");
+    const request = getRequest();
+    const url = new URL(request.url);
+    const sandboxHost = url.hostname === "localhost" ? request.headers.get("x-forwarded-host") : null;
+    const returnUrl = new URL("/oauth/email/return", sandboxHost ? `https://${sandboxHost}` : url.origin).toString();
+    const existing = await getConnection(context.userId, CONNECTOR[data.provider]).catch(() => null);
+    const { authorizationUrl } = await authorizeAppUserOAuth({
+      gatewayBaseUrl: GATEWAY,
+      connectorId: CONNECTOR[data.provider],
+      appUserId: context.userId,
+      clientAPIKey: clientKey,
+      returnUrl,
+      connectionAPIKey: existing?.apiKey,
+      credentialsConfiguration: { scopes: SCOPES[data.provider] },
+    });
+    return { authorizationUrl };
+  });
+
+export const completeEmailLogin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ provider: z.enum(["gmail", "outlook"]), code: z.string().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { connectionAPIKey, connectorId } = await exchangeAppUserOAuthCode(GATEWAY, data.code);
+    if (connectorId !== CONNECTOR[data.provider]) throw new Error("Conector inesperado");
+    await saveConnection(context.userId, connectorId, connectionAPIKey);
+    // descobre o e-mail logado
+    try {
+      currentKeyFor = () => connectionAPIKey;
+      const res = await gatewayFetch(data.provider, data.provider === "gmail" ? "/users/me/profile" : "/me");
+      const j = (await res.json()) as { emailAddress?: string; mail?: string; userPrincipalName?: string };
+      const email = (j.emailAddress ?? j.mail ?? j.userPrincipalName ?? "").toLowerCase();
+      if (email) await setAccountEmail(context.userId, connectorId, email);
+      return { ok: true, email };
+    } finally {
+      currentKeyFor = null;
+    }
+  });
+
+export const logoutEmail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => ProviderInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const c = await getConnection(context.userId, CONNECTOR[data.provider]);
+    if (c) {
+      await disconnectAppUser({ gatewayBaseUrl: GATEWAY, connectionAPIKey: c.apiKey, connectorId: CONNECTOR[data.provider] }).catch(() => {});
+      await deleteConnection(context.userId, CONNECTOR[data.provider]);
+    }
+    return { ok: true };
   });
 
 // ---------- extração ----------
