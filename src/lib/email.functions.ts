@@ -28,14 +28,10 @@ const CLIENT_ENV: Record<Provider, string> = {
 };
 const BASE_PATH: Record<Provider, string> = { gmail: "/gmail/v1", outlook: "/v1.0" };
 
-// userId do request atual, definido no handler antes de chamar gatewayFetch
-let currentKeyFor: ((p: Provider) => string) | null = null;
-
-async function gatewayFetch(provider: Provider, path: string, init?: RequestInit): Promise<Response> {
-  if (!currentKeyFor) throw new Error("Conta de e-mail não conectada");
+async function gatewayFetch(key: string, provider: Provider, path: string, init?: RequestInit): Promise<Response> {
   const res = await callAsAppUser({
     gatewayBaseUrl: GATEWAY,
-    connectionAPIKey: currentKeyFor(provider),
+    connectionAPIKey: key,
     connectorId: CONNECTOR[provider],
     path: `${BASE_PATH[provider]}${path}`,
     init,
@@ -102,14 +98,13 @@ export const completeEmailLogin = createServerFn({ method: "POST" })
     await saveConnection(context.userId, connectorId, connectionAPIKey);
     // descobre o e-mail logado
     try {
-      currentKeyFor = () => connectionAPIKey;
-      const res = await gatewayFetch(data.provider, data.provider === "gmail" ? "/users/me/profile" : "/me");
+      const res = await gatewayFetch(connectionAPIKey, data.provider, data.provider === "gmail" ? "/users/me/profile" : "/me");
       const j = (await res.json()) as { emailAddress?: string; mail?: string; userPrincipalName?: string };
       const email = (j.emailAddress ?? j.mail ?? j.userPrincipalName ?? "").toLowerCase();
       if (email) await setAccountEmail(context.userId, connectorId, email);
       return { ok: true, email };
-    } finally {
-      currentKeyFor = null;
+    } catch {
+      return { ok: true, email: "" };
     }
   });
 
@@ -190,6 +185,9 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => ScanInput.parse(data))
   .handler(async ({ data, context }) => {
+    const conn = await getConnection(context.userId, CONNECTOR[data.provider]);
+    if (!conn) throw new Error("Entre com sua conta de e-mail antes de varrer.");
+    const contaEmail = conn.accountEmail ?? null;
     const contacts = new Map<string, ScannedContact>();
 
     const addContact = (c: ScannedContact) => {
@@ -215,7 +213,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
 
     if (data.provider === "gmail") {
       const listPath = `/users/me/messages?maxResults=${Math.min(data.maxMessages, 500)}${data.pageToken ? `&pageToken=${encodeURIComponent(data.pageToken)}` : ""}`;
-      const list = await (await gatewayFetch("gmail", listPath)).json() as {
+      const list = await (await gatewayFetch(conn.apiKey, "gmail", listPath)).json() as {
         messages?: { id: string }[];
         nextPageToken?: string;
       };
@@ -228,7 +226,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
         const msgs = await Promise.all(
           batch.map(async (id) => {
             try {
-              const r = await gatewayFetch("gmail", `/users/me/messages/${id}?format=full`);
+              const r = await gatewayFetch(conn.apiKey, "gmail", `/users/me/messages/${id}?format=full`);
               return (await r.json()) as any;
             } catch {
               return null;
@@ -264,7 +262,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
       // Outlook (Microsoft Graph via gateway)
       const skip = data.pageToken ? Number(data.pageToken) : 0;
       const list = await (await gatewayFetch(
-        "outlook",
+        conn.apiKey, "outlook",
         `/me/messages?$top=${Math.min(data.maxMessages, 100)}&$skip=${skip}&$select=from,toRecipients,ccRecipients,subject,receivedDateTime,bodyPreview`,
       )).json() as { value?: any[] };
       const msgs = list.value ?? [];
@@ -308,6 +306,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
         .select("id, nome, telefone, cpf, cep")
         .eq("user_id", userId)
         .eq("email", c.email)
+        .eq("conta_email", contaEmail ?? "")
         .limit(1);
       const row = existing?.[0];
       if (row) {
@@ -330,6 +329,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
           cep: c.cep || null,
           origem: c.origem,
           provedor: data.provider,
+          conta_email: contaEmail,
         });
         if (!error) inserted++;
       }
