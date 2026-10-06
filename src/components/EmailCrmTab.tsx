@@ -14,7 +14,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { getEmailProviders, scanEmailContacts } from "@/lib/email.functions";
+import { completeEmailLogin, getEmailProviders, logoutEmail, scanEmailContacts, startEmailLogin } from "@/lib/email.functions";
 
 type Contact = {
   id: string;
@@ -25,6 +25,7 @@ type Contact = {
   cep: string | null;
   origem: string | null;
   provedor: string | null;
+  conta_email: string | null;
   created_at: string;
 };
 
@@ -52,7 +53,10 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 export function EmailCrmTab() {
-  const [providers, setProviders] = useState<{ gmail: boolean; outlook: boolean } | null>(null);
+  type PState = { available: boolean; connected: boolean; email: string | null };
+  const [providers, setProviders] = useState<{ gmail: PState; outlook: PState } | null>(null);
+  const [active, setActive] = useState<"gmail" | "outlook" | null>(null);
+  const [logging, setLogging] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -72,9 +76,62 @@ export function EmailCrmTab() {
   }, []);
 
   useEffect(() => {
-    getEmailProviders().then(setProviders).catch(() => setProviders({ gmail: false, outlook: false }));
+    loadProviders();
     refresh();
   }, [refresh]);
+
+  async function loadProviders() {
+    try {
+      const p = await getEmailProviders();
+      setProviders(p);
+      setActive((cur) => cur && p[cur].connected ? cur : p.gmail.connected ? "gmail" : p.outlook.connected ? "outlook" : null);
+    } catch {
+      const off = { available: false, connected: false, email: null };
+      setProviders({ gmail: off, outlook: off });
+    }
+  }
+
+  const login = async (provider: "gmail" | "outlook") => {
+    const popup = window.open("", "email-login", "width=600,height=720");
+    if (!popup) { toast.error("Permita pop-ups para entrar"); return; }
+    setLogging(provider);
+    try {
+      const { authorizationUrl } = await startEmailLogin({ data: { provider } });
+      const code = await new Promise<string | null>((resolve, reject) => {
+        const onMsg = (ev: MessageEvent) => {
+          if (ev.origin !== window.location.origin || ev.source !== popup) return;
+          const t = ev.data?.type;
+          if (t !== "appUserConnectorOAuthComplete" && t !== "appUserConnectorOAuthFailed") return;
+          cleanup();
+          if (t === "appUserConnectorOAuthComplete") resolve(ev.data?.code ?? null);
+          else reject(new Error("Login não concluído"));
+        };
+        const poll = window.setInterval(() => { if (popup.closed) { cleanup(); reject(new Error("Janela fechada antes de concluir")); } }, 500);
+        const cleanup = () => { window.removeEventListener("message", onMsg); window.clearInterval(poll); };
+        window.addEventListener("message", onMsg);
+        popup.location.href = authorizationUrl;
+      });
+      if (code) {
+        const r = await completeEmailLogin({ data: { provider, code } });
+        toast.success(r.email ? `Conectado como ${r.email}` : "Conta conectada");
+      }
+      setActive(provider);
+      await loadProviders();
+    } catch (e) {
+      popup.close();
+      toast.error(e instanceof Error ? e.message : "Falha no login");
+    } finally {
+      setLogging(null);
+    }
+  };
+
+  const logout = async (provider: "gmail" | "outlook") => {
+    await logoutEmail({ data: { provider } });
+    toast.success("Conta desconectada");
+    await loadProviders();
+  };
+
+  const activeEmail = active && providers ? (providers[active].email || active) : null;
 
   const runScan = async (provider: "gmail" | "outlook") => {
     setScanning(true);
@@ -129,25 +186,27 @@ export function EmailCrmTab() {
   const clearAll = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
-    const { error } = await supabase.from("crm_email_contacts").delete().eq("user_id", u.user.id);
+    if (!activeEmail) return;
+    const { error } = await supabase.from("crm_email_contacts").delete().eq("user_id", u.user.id).eq("conta_email", activeEmail);
     if (error) {
       toast.error("Não foi possível limpar");
       return;
     }
-    setContacts([]);
-    toast.success("Todos os contatos de e-mail foram removidos");
+    setContacts((prev) => prev.filter((c) => c.conta_email !== activeEmail));
+    toast.success("Contatos desta conta removidos");
   };
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return contacts.filter((c) => {
       if (removed.has(c.id)) return false;
+      if (!activeEmail || c.conta_email !== activeEmail) return false;
       if (!q) return true;
       return [c.nome, c.email, c.telefone, c.cpf, c.cep, c.origem]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [contacts, query, removed]);
+  }, [contacts, query, removed, activeEmail]);
 
   const copyAll = async () => {
     const text = visible
@@ -228,7 +287,6 @@ export function EmailCrmTab() {
     }
   };
 
-  const configured = providers && (providers.gmail || providers.outlook);
 
   return (
     <div className="space-y-4">
@@ -247,35 +305,54 @@ export function EmailCrmTab() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Verificando conexões...
           </div>
-        ) : !configured ? (
-          <div className="rounded-md border border-dashed p-4 space-y-2">
-            <p className="text-sm font-medium">Nenhuma conta de e-mail conectada ainda.</p>
-            <p className="text-sm text-muted-foreground">
-              Para ativar, peça aqui no chat: <strong>"conectar Gmail"</strong> ou{" "}
-              <strong>"conectar Outlook"</strong> e autorize a conexão no cartão que aparecer.
-              Depois disso, a varredura fica disponível nesta aba para qualquer conta que você conectar.
-            </p>
-          </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            {providers.gmail && (
-              <Button onClick={() => runScan("gmail")} disabled={scanning}>
-                {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                Varrear Gmail
-              </Button>
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(["gmail", "outlook"] as const).map((p) => {
+                const st = providers[p];
+                const label = p === "gmail" ? "Gmail" : "Outlook";
+                return (
+                  <div key={p} className={`rounded-md border p-3 space-y-2 ${active === p ? "border-primary" : ""}`}>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      <span className="font-medium">{label}</span>
+                      {st.connected && <Badge variant="secondary" className="ml-auto truncate max-w-[60%]">{st.email || "conectado"}</Badge>}
+                    </div>
+                    {st.connected ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant={active === p ? "default" : "outline"} onClick={() => setActive(p)}>
+                          {active === p ? "Conta ativa" : "Usar esta conta"}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => login(p)} disabled={!!logging}>Trocar conta</Button>
+                        <Button size="sm" variant="ghost" onClick={() => logout(p)}>Sair</Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" onClick={() => login(p)} disabled={!!logging || !st.available}>
+                        {logging === p ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                        Entrar com {label}
+                      </Button>
+                    )}
+                    {!st.available && !st.connected && (
+                      <p className="text-xs text-muted-foreground">Login do {label} ainda em configuração.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {active && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={() => runScan(active)} disabled={scanning}>
+                  {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailSearch className="h-4 w-4" />}
+                  Varrer {activeEmail}
+                </Button>
+                {scanning && (
+                  <Button variant="ghost" onClick={() => { cancelRef.current = true; }}>
+                    <X className="h-4 w-4" /> Parar
+                  </Button>
+                )}
+                {scanInfo && <span className="text-sm text-muted-foreground">{scanInfo}</span>}
+              </div>
             )}
-            {providers.outlook && (
-              <Button onClick={() => runScan("outlook")} disabled={scanning} variant={providers.gmail ? "outline" : "default"}>
-                {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                Varrear Outlook
-              </Button>
-            )}
-            {scanning && (
-              <Button variant="ghost" onClick={() => { cancelRef.current = true; }}>
-                <X className="h-4 w-4" /> Parar
-              </Button>
-            )}
-            {scanInfo && <span className="text-sm text-muted-foreground">{scanInfo}</span>}
           </div>
         )}
       </Card>
@@ -331,7 +408,7 @@ export function EmailCrmTab() {
         ) : visible.length === 0 ? (
           <div className="text-sm text-muted-foreground py-6 text-center">
             <AtSign className="h-8 w-8 mx-auto mb-2 opacity-40" />
-            Nenhum contato extraído ainda. Conecte uma conta e rode a varredura.
+            {activeEmail ? "Nenhum contato desta conta ainda. Rode a varredura." : "Entre com uma conta de e-mail para ver os contatos."}
           </div>
         ) : (
           <div className="overflow-x-auto rounded-md border">
