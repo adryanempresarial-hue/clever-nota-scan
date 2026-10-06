@@ -187,7 +187,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const conn = await getConnection(context.userId, CONNECTOR[data.provider]);
     if (!conn) throw new Error("Entre com sua conta de e-mail antes de varrer.");
-    const contaEmail = conn.accountEmail ?? null;
+    const contaEmail = conn.accountEmail || data.provider;
     const contacts = new Map<string, ScannedContact>();
 
     const addContact = (c: ScannedContact) => {
@@ -306,7 +306,7 @@ export const scanEmailContacts = createServerFn({ method: "POST" })
         .select("id, nome, telefone, cpf, cep")
         .eq("user_id", userId)
         .eq("email", c.email)
-        .eq("conta_email", contaEmail ?? "")
+        .eq("conta_email", contaEmail)
         .limit(1);
       const row = existing?.[0];
       if (row) {
