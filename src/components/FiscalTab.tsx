@@ -13,6 +13,9 @@ type Props = {
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 
+/** Só o número, sem "R$": 39111,87 */
+const plain = (n: number) => n.toFixed(2).replace(".", ",");
+
 function parseMoney(raw: string): number {
   const s = String(raw ?? "")
     .replace(/[^\d,.-]/g, "")
@@ -244,7 +247,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => void copyWithToast(brl(calc.bebidas))}
+                onClick={() => void copyWithToast(plain(calc.bebidas))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
@@ -318,7 +321,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => void copyWithToast(brl(r.value))}
+                onClick={() => void copyWithToast(plain(r.value))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
@@ -332,7 +335,7 @@ export function FiscalTab({ onSaveFile }: Props) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => void copyWithToast(brl(calc.soma))}
+              onClick={() => void copyWithToast(plain(calc.soma))}
             >
               <Copy className="w-4 h-4" />
             </Button>
