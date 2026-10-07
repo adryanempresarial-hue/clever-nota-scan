@@ -244,7 +244,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => void copyWithToast(brl(calc.bebidas))}
+                onClick={() => void copyWithToast(plain(calc.bebidas))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
@@ -318,7 +318,7 @@ export function FiscalTab({ onSaveFile }: Props) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => void copyWithToast(brl(r.value))}
+                onClick={() => void copyWithToast(plain(r.value))}
               >
                 <Copy className="w-4 h-4" />
               </Button>
@@ -332,7 +332,7 @@ export function FiscalTab({ onSaveFile }: Props) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => void copyWithToast(brl(calc.soma))}
+              onClick={() => void copyWithToast(plain(calc.soma))}
             >
               <Copy className="w-4 h-4" />
             </Button>
