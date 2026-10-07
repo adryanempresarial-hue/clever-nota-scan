@@ -13,6 +13,9 @@ type Props = {
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 
+/** Só o número, sem "R$": 39111,87 */
+const plain = (n: number) => n.toFixed(2).replace(".", ",");
+
 function parseMoney(raw: string): number {
   const s = String(raw ?? "")
     .replace(/[^\d,.-]/g, "")
