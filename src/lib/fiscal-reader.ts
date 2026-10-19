@@ -1,10 +1,24 @@
 export type PaymentRow = {
   uh: string; guest: string; cpf: string; credit: string; brand: string; amount: string;
+  page?: string; comp?: string; payments?: { brand: string; amount: string }[];
   source: string; doubts: string[]; reviewed: boolean;
 };
 export type FiscalTotal = { uh: string; guest: string; paymentsCents: number; creditsCents: number };
-export const paymentFields = ["uh", "guest", "cpf", "credit", "brand", "amount"] as const;
-export const paymentLabels = ["UH / apartamento", "Hóspede", "CPF", "Créditos", "Bandeira", "Pagamento"];
+export const paymentFields = ["page", "uh", "comp", "guest", "cpf", "credit", "brand", "amount"] as const;
+export const paymentLabels = ["Página de origem", "UH / apartamento", "Código/comp.", "Hóspede", "CPF", "Créditos", "Bandeira", "Pagamento"];
+export const resultHeaders = ["Página de origem", "UH", "Código/comp.", "Responsável / hóspede", "Créditos", "Meios de pagamento identificados", "Total calculado", "Situação"];
+export const rowPayments = (row: PaymentRow) => row.payments ?? (row.amount || row.brand ? [{ brand: row.brand, amount: row.amount }] : []);
+export function calculatedRowTotal(row: PaymentRow): number | null {
+  const values = [row.credit, ...rowPayments(row).map(p => p.amount)].filter(v => v !== "");
+  if (!values.length || rowPayments(row).some(p => !p.amount)) return null;
+  const cents = values.map(moneyCents);
+  return cents.some(v => v === null) ? null : cents.reduce<number>((sum, v) => sum + (v ?? 0), 0);
+}
+export function readingStatus(row: PaymentRow): string {
+  if (calculatedRowTotal(row) === null) return "Conferir valor";
+  if (!row.guest || (!row.reviewed && row.doubts.some(d => /nome|h[oó]spede|respons[aá]vel/i.test(d)))) return "Revisar nome";
+  return row.reviewed ? "Conferido" : "Conferir leitura";
+}
 export function cleanCell(value: unknown): string {
   const text = String(value ?? "").trim();
   return /^(?:\*\*\s*)?null(?:\s*\*\*)?$/i.test(text) ? "" : text;
@@ -25,15 +39,15 @@ export function rowDoubts(row: PaymentRow): string[] {
   const doubts = [...row.doubts];
   if (!row.uh) doubts.push("UH ausente");
   if (!row.guest) doubts.push("Hóspede ausente");
-  if (!row.amount && !row.credit) doubts.push("Valor ausente");
-  if (row.amount && moneyCents(row.amount) === null) doubts.push("Pagamento ilegível ou ambíguo");
+  if (!rowPayments(row).length && !row.credit) doubts.push("Valor ausente");
+  if (rowPayments(row).some(p => !p.amount || moneyCents(p.amount) === null)) doubts.push("Pagamento ilegível ou ambíguo");
   if (row.credit && moneyCents(row.credit) === null) doubts.push("Crédito ilegível ou ambíguo");
   return [...new Set(doubts)];
 }
 export function possibleDuplicates(rows: PaymentRow[]): number[] {
   const groups = new Map<string, number[]>();
   rows.forEach((r, i) => {
-    const key = JSON.stringify(paymentFields.map(f => f === "amount" || f === "credit" ? moneyCents(r[f]) ?? cleanCell(r[f]) : f === "cpf" ? r[f].replace(/\D/g, "") : cleanCell(r[f]).toLocaleLowerCase("pt-BR")));
+    const key = JSON.stringify([paymentFields.map(f => f === "amount" || f === "credit" ? moneyCents(r[f] ?? "") ?? cleanCell(r[f]) : f === "cpf" ? r[f].replace(/\D/g, "") : cleanCell(r[f]).toLocaleLowerCase("pt-BR")), rowPayments(r).map(p => [cleanCell(p.brand).toLowerCase(), moneyCents(p.amount) ?? p.amount])]);
     groups.set(key, [...(groups.get(key) ?? []), i]);
   });
   return [...groups.values()].filter(v => v.length > 1).flat();
@@ -43,7 +57,7 @@ export function calculateTotals(rows: PaymentRow[]): FiscalTotal[] {
   for (const r of rows) {
     const key = JSON.stringify([r.uh.trim(), r.guest.trim().toLocaleLowerCase("pt-BR"), r.cpf.replace(/\D/g, "")]);
     const group = groups.get(key) ?? { uh: r.uh, guest: r.guest, paymentsCents: 0, creditsCents: 0 };
-    group.paymentsCents += moneyCents(r.amount) ?? 0;
+    group.paymentsCents += rowPayments(r).reduce((sum, p) => sum + (moneyCents(p.amount) ?? 0), 0);
     group.creditsCents += moneyCents(r.credit) ?? 0;
     groups.set(key, group);
   }
@@ -51,13 +65,15 @@ export function calculateTotals(rows: PaymentRow[]): FiscalTotal[] {
 }
 export function canConfirm(rows: PaymentRow[], duplicatesReviewed: boolean): boolean {
   return rows.length > 0 && rows.every(r => r.reviewed && r.uh.trim() && r.guest.trim() &&
-    (r.amount || r.credit) && (!r.amount || moneyCents(r.amount) !== null) && (!r.credit || moneyCents(r.credit) !== null)) &&
+    calculatedRowTotal(r) !== null) &&
     (possibleDuplicates(rows).length === 0 || duplicatesReviewed);
 }
 const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const aliases: Record<typeof paymentFields[number], string[]> = {
+  page: ["pagina", "pag", "pagina de origem"],
+  comp: ["comp", "codigo", "codigo/comp", "comprovante"],
   uh: ["uh", "apartamento", "apart", "apto", "numero da uh", "unidade habitacional", "hub"],
-  guest: ["nome", "hospede", "nome do hospede", "cliente", "titular"],
+  guest: ["nome", "hospede", "nome do hospede", "cliente", "titular", "responsavel", "responsavel / hospede"],
   cpf: ["cpf", "cpf/cnpj", "documento"],
   credit: ["creditos", "credito", "valor credito"],
   brand: ["bandeira", "bandeira do cartao", "cartao"],
@@ -80,7 +96,7 @@ export function parsePaymentSheet(matrix: unknown[][], source: string): PaymentR
   const rows: PaymentRow[] = [];
   for (const cells of matrix.slice(header + 1)) {
     const get = (f: typeof paymentFields[number]) => columns[f] === undefined ? "" : cleanCell(cells[columns[f] as number]);
-    const row: PaymentRow = { uh: get("uh"), guest: get("guest"), cpf: get("cpf"), credit: get("credit"), brand: get("brand"), amount: get("amount"), source, doubts: [], reviewed: false };
+    const row: PaymentRow = { page: get("page"), comp: get("comp"), uh: get("uh"), guest: get("guest"), cpf: get("cpf"), credit: get("credit"), brand: get("brand"), amount: get("amount"), source, doubts: [], reviewed: false };
     if (!paymentFields.some(f => row[f])) continue;
     if (normalize(row.uh) === "uh" || normalize(row.guest) === "hospede" || /^(total|subtotal|saldo)\b/i.test(row.uh || row.guest)) continue;
     row.doubts = rowDoubts(row);
