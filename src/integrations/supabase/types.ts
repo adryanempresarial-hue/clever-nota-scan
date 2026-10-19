@@ -148,6 +148,7 @@ export type Database = {
           file_hash: string
           file_name: string
           id: string
+          search_text: string
           status: string
           storage_path: string | null
           totals: Json
@@ -162,6 +163,7 @@ export type Database = {
           file_hash: string
           file_name: string
           id?: string
+          search_text?: string
           status?: string
           storage_path?: string | null
           totals?: Json
@@ -176,6 +178,7 @@ export type Database = {
           file_hash?: string
           file_name?: string
           id?: string
+          search_text?: string
           status?: string
           storage_path?: string | null
           totals?: Json

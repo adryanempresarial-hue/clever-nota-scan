@@ -1,0 +1,1 @@
+ALTER TABLE public.fiscal_document_runs ADD COLUMN search_text text NOT NULL DEFAULT ''; CREATE INDEX fiscal_document_runs_search ON public.fiscal_document_runs USING gin (to_tsvector('simple', search_text));

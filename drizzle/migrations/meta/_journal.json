@@ -22,6 +22,13 @@
       "when": 1792452744300,
       "tag": "0002_fiscal_document_history",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792452873619,
+      "tag": "0003_fiscal_history_search",
+      "breakpoints": true
     }
   ]
 }
