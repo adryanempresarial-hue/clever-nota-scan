@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { PaymentExtractionSchema, extractFiscalDocument } from "./fiscal-reader-ai.server";
 
 export const readFiscalDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -14,6 +13,7 @@ export const readFiscalDocument = createServerFn({ method: "POST" })
     if (!key) throw new Error("A leitura por IA não está configurada.");
     let blockReason: string | undefined;
     try {
+      const { PaymentExtractionSchema, extractFiscalDocument } = await import("./fiscal-reader-ai.server");
       const extraction = await extractFiscalDocument(data, key, async (status, message) => {
         if (status === 402 || status === 403) blockReason = message;
       });
