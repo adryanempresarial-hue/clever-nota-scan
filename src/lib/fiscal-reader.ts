@@ -33,7 +33,7 @@ export function rowDoubts(row: PaymentRow): string[] {
 export function possibleDuplicates(rows: PaymentRow[]): number[] {
   const groups = new Map<string, number[]>();
   rows.forEach((r, i) => {
-    const key = JSON.stringify(paymentFields.map(f => cleanCell(r[f]).toLocaleLowerCase("pt-BR")));
+    const key = JSON.stringify(paymentFields.map(f => f === "amount" || f === "credit" ? moneyCents(r[f]) ?? cleanCell(r[f]) : f === "cpf" ? r[f].replace(/\D/g, "") : cleanCell(r[f]).toLocaleLowerCase("pt-BR")));
     groups.set(key, [...(groups.get(key) ?? []), i]);
   });
   return [...groups.values()].filter(v => v.length > 1).flat();
@@ -41,7 +41,7 @@ export function possibleDuplicates(rows: PaymentRow[]): number[] {
 export function calculateTotals(rows: PaymentRow[]): FiscalTotal[] {
   const groups = new Map<string, FiscalTotal>();
   for (const r of rows) {
-    const key = JSON.stringify([r.uh.trim(), r.guest.trim().toLocaleLowerCase("pt-BR"), r.cpf.trim()]);
+    const key = JSON.stringify([r.uh.trim(), r.guest.trim().toLocaleLowerCase("pt-BR"), r.cpf.replace(/\D/g, "")]);
     const group = groups.get(key) ?? { uh: r.uh, guest: r.guest, paymentsCents: 0, creditsCents: 0 };
     group.paymentsCents += moneyCents(r.amount) ?? 0;
     group.creditsCents += moneyCents(r.credit) ?? 0;
