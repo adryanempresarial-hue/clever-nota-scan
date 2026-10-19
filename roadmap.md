@@ -4,4 +4,4 @@
 - [x] Add history, search, review, copying and Excel/PDF exports.
 - [x] Run calculation tests and authenticated import/review/reload/export checks.
 - [x] Add and verify confirmed document deletion and individual total copying.
-- [ ] Adjust fiscal reader table to reference: page, comp, separate credits/payments, calculated total and review status; verify persistence and exports.
+- [x] Adjust fiscal reader table to reference: page, comp, separate credits/payments, calculated total and review status; verify persistence and exports.
