@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { moneyCents, calculateTotals, possibleDuplicates, canConfirm, parsePaymentSheet } from "./fiscal-reader";
+import { moneyCents, calculateTotals, possibleDuplicates, canConfirm, parsePaymentSheet } from "../src/lib/fiscal-reader";
 const row = { uh: "21", guest: "Ana", cpf: "05310306790", credit: "", brand: "Visa", amount: "2.000", source: "arquivo.xls", doubts: [], reviewed: false };
 describe("Fiscal reader rules", () => {
   test("preserves 2.000 as two thousand, not 2.0", () => expect(moneyCents("2.000")).toBe(200000));
