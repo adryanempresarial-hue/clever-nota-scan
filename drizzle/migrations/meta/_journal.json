@@ -15,6 +15,13 @@
       "when": 1791198915311,
       "tag": "0001_app_user_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792452744300,
+      "tag": "0002_fiscal_document_history",
+      "breakpoints": true
     }
   ]
 }
