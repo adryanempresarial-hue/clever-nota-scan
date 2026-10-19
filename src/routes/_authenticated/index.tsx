@@ -75,6 +75,8 @@ export const Route = createFileRoute("/_authenticated/")({
         property: "og:description",
         content: "Extração inteligente de notas fiscais e comprovantes com IA.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: NotaTool,

@@ -119,6 +119,75 @@ export type Database = {
         }
         Relationships: []
       }
+      fiscal_ai_access: {
+        Row: {
+          blocked: boolean
+          reason: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          blocked?: boolean
+          reason?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          blocked?: boolean
+          reason?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      fiscal_document_runs: {
+        Row: {
+          corrected_rows: Json
+          created_at: string
+          extracted_rows: Json
+          file_hash: string
+          file_name: string
+          id: string
+          search_text: string
+          status: string
+          storage_path: string | null
+          totals: Json
+          updated_at: string
+          user_id: string
+          warnings: Json
+        }
+        Insert: {
+          corrected_rows?: Json
+          created_at?: string
+          extracted_rows?: Json
+          file_hash: string
+          file_name: string
+          id?: string
+          search_text?: string
+          status?: string
+          storage_path?: string | null
+          totals?: Json
+          updated_at?: string
+          user_id: string
+          warnings?: Json
+        }
+        Update: {
+          corrected_rows?: Json
+          created_at?: string
+          extracted_rows?: Json
+          file_hash?: string
+          file_name?: string
+          id?: string
+          search_text?: string
+          status?: string
+          storage_path?: string | null
+          totals?: Json
+          updated_at?: string
+          user_id?: string
+          warnings?: Json
+        }
+        Relationships: []
+      }
       nota_files: {
         Row: {
           count: number

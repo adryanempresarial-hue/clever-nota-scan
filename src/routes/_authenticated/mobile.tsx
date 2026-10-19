@@ -39,6 +39,10 @@ export const Route = createFileRoute("/_authenticated/mobile")({
   head: () => ({
     meta: [
       { title: "NOTA Mobile · Scanner ao vivo" },
+      { property: "og:title", content: "NOTA Mobile · Scanner ao vivo" },
+      { property: "og:description", content: "Scanner de documentos NOTA no celular, com dados salvos na sua conta." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calculator, Copy, FileSpreadsheet, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { FiscalDocumentReader } from "./FiscalDocumentReader";
 
 type Props = {
   onSaveFile: (blob: Blob, name: string, kind: "pdf" | "xlsx", count: number) => Promise<void>;
@@ -347,6 +348,7 @@ export function FiscalTab({ onSaveFile }: Props) {
       </Card>
         </>
       )}
+      <FiscalDocumentReader onSaveFile={onSaveFile} />
     </div>
   );
 }

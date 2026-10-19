@@ -13,7 +13,14 @@ import { lovable } from "@/integrations/lovable";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
-    meta: [{ title: "Entrar · NOTA D4S" }],
+    meta: [
+      { title: "Entrar · NOTA D4S" },
+      { name: "description", content: "Entre na sua conta NOTA D4S para acessar documentos e contatos salvos." },
+      { property: "og:title", content: "Entrar · NOTA D4S" },
+      { property: "og:description", content: "Acesse seus documentos e contatos na conta NOTA D4S." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,

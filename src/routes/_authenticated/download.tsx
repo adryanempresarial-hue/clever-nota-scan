@@ -20,6 +20,10 @@ export const Route = createFileRoute("/_authenticated/download")({
   head: () => ({
     meta: [
       { title: "Baixar app NOTA · Instalar no celular e desktop" },
+      { property: "og:title", content: "Baixar app NOTA · Instalar no celular e desktop" },
+      { property: "og:description", content: "Instale o NOTA no celular ou computador." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:
