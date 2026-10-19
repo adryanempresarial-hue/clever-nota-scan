@@ -4,13 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, Download, FileSearch, FileSpreadsheet, FileText, Loader2, RefreshCw, Save, Upload, X } from "lucide-react";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { Copy, Download, FileSearch, FileSpreadsheet, FileText, Loader2, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { readFiscalDocument } from "@/lib/fiscal-reader.functions";
 import { calculateTotals, canConfirm, displayCents, paymentFields, paymentLabels, possibleDuplicates, rowDoubts } from "@/lib/fiscal-reader";
 import type { PaymentRow } from "@/lib/fiscal-reader";
 import { prepareDocument, READER_ACCEPT, unpackDocuments } from "@/lib/fiscal-reader-files";
-import { findFiscalRun, hashDocument, loadFiscalRuns, originalFiscalFile, saveFiscalReview, saveNewFiscalRun } from "@/lib/fiscal-reader-store";
+import { deleteFiscalRun, findFiscalRun, hashDocument, loadFiscalRuns, originalFiscalFile, saveFiscalReview, saveNewFiscalRun } from "@/lib/fiscal-reader-store";
 import type { FiscalRun } from "@/lib/fiscal-reader-store";
 import { copyFiscalText, downloadBlob, exportFiscalRun, fiscalCopyText } from "@/lib/fiscal-reader-export";
 
@@ -32,11 +33,27 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
   const [saving, setSaving] = useState(false);
   const [rowPage, setRowPage] = useState(0);
   const [resultSearch, setResultSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<FiscalRun | null>(null);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => { const timer = setTimeout(() => { setDebounced(search); setPage(0); }, 300); return () => clearTimeout(timer); }, [search]);
   const history = useQuery({ queryKey: ["fiscal-runs", debounced, page], queryFn: () => loadFiscalRuns(debounced, page) });
   const duplicates = useMemo(() => possibleDuplicates(rows), [rows]);
   const totals = useMemo(() => calculateTotals(rows), [rows]);
   const isConfirmed = active?.status === "confirmed" && JSON.stringify(rows) === JSON.stringify(active.corrected_rows);
+  const copyTotal = (cents: number) => void copyFiscalText(displayCents(cents)).then(() => toast.success("Copiado")).catch(error => toast.error(error.message));
+  const removeDocument = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteFiscalRun(deleteTarget.id);
+      if (active?.id === deleteTarget.id) { setActive(null); setRows([]); }
+      setDeleteTarget(null);
+      if (history.data?.runs.length === 1 && page > 0) setPage(p => p - 1);
+      await history.refetch();
+      toast.success("Documento importado apagado");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível apagar o documento."); }
+    finally { setDeleting(false); }
+  };
   const open = (run: FiscalRun) => {
     setActive(run); setRows(run.corrected_rows); setShowOriginal(false); setRowPage(0); setResultSearch("");
     setDuplicateReview(run.status === "confirmed"); setWarningReview(run.status === "confirmed");
@@ -123,7 +140,7 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
       {history.isPending ? <div className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" />Carregando histórico</div> : history.error ? <p role="alert" className="text-sm text-destructive">Não foi possível carregar o histórico: {history.error.message}</p> : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm"><thead className="bg-muted text-left"><tr>{["Documento", "Data / hora", "Pagamentos", "Conferência", ""].map((h, i) => <th key={i} className="p-3 font-medium">{h}</th>)}</tr></thead><tbody>
-            {history.data.runs.map(run => <tr key={run.id} className="border-t"><td className="max-w-64 break-words p-3">{run.file_name}</td><td className="whitespace-nowrap p-3">{new Date(run.created_at).toLocaleString("pt-BR")}</td><td className="p-3">{run.corrected_rows.length}</td><td className="p-3">{run.status === "confirmed" ? "Confirmado" : "Pendente"}</td><td className="p-3"><Button size="sm" variant="outline" onClick={() => open(run)}>Detalhes</Button></td></tr>)}
+            {history.data.runs.map(run => <tr key={run.id} className="border-t"><td className="max-w-64 break-words p-3">{run.file_name}</td><td className="whitespace-nowrap p-3">{new Date(run.created_at).toLocaleString("pt-BR")}</td><td className="p-3">{run.corrected_rows.length}</td><td className="p-3">{run.status === "confirmed" ? "Confirmado" : "Pendente"}</td><td className="p-3"><div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={() => open(run)}>Detalhes</Button><Button variant="ghost" size="icon" className="text-destructive" disabled={busy || saving || deleting} title="Apagar documento importado" aria-label={`Apagar ${run.file_name}`} onClick={() => setDeleteTarget(run)}><Trash2 className="size-4" /></Button></div></td></tr>)}
             {!history.data.runs.length && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Nenhum processamento encontrado.</td></tr>}
           </tbody></table>
         </div>
@@ -138,6 +155,7 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
           <Button variant="outline" size="sm" onClick={() => void copyFiscalText(fiscalCopyText(rows)).then(() => toast.success("Copiado")).catch(error => toast.error(error.message))}><Copy className="mr-2 size-4" />Copiar tudo</Button>
           <Button variant="outline" size="sm" disabled={saving} onClick={() => void exportResult("xlsx")}><FileSpreadsheet className="mr-2 size-4" />Excel</Button>
           <Button variant="outline" size="sm" disabled={saving} onClick={() => void exportResult("pdf")}><FileText className="mr-2 size-4" />PDF</Button>
+          <Button variant="outline" size="icon" className="text-destructive" disabled={busy || saving || deleting} title="Apagar documento importado" aria-label="Apagar documento importado" onClick={() => setDeleteTarget(active)}><Trash2 className="size-4" /></Button>
         </div>
         {active.warnings.length > 0 && <div className="space-y-2 border-l-2 border-destructive pl-3 text-sm"><h4 className="font-medium">Pendências do documento</h4><ul>{active.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul><label className="flex items-center gap-2"><Checkbox checked={warningReview} onCheckedChange={v => setWarningReview(v === true)} />Conferi e resolvi as pendências no original</label></div>}
         {duplicates.length > 0 && <div className="space-y-2 text-sm text-destructive"><p>{duplicates.length} linhas com possível duplicidade. Mantidas nos totais.</p><label className="flex items-center gap-2"><Checkbox checked={duplicateReview} onCheckedChange={v => setDuplicateReview(v === true)} />Conferi: são pagamentos distintos</label></div>}
@@ -147,9 +165,15 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
         </tbody></table></div>
         <div className="flex items-center justify-end gap-3 text-sm"><span>{filtered.length} linhas</span><Button size="sm" variant="outline" disabled={rowPage === 0} onClick={() => setRowPage(p => p - 1)}>Linhas anteriores</Button><Button size="sm" variant="outline" disabled={(rowPage + 1) * 25 >= filtered.length} onClick={() => setRowPage(p => p + 1)}>Próximas linhas</Button></div>
         <h4 className="text-sm font-semibold">Totais por UH e hóspede · valores legíveis{!isConfirmed && " · provisórios"}</h4>
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-left"><tr>{["UH", "Hóspede", "Pagamentos", "Créditos"].map(h => <th key={h} className="p-2 font-medium">{h}</th>)}</tr></thead><tbody>{totals.map((t, i) => <tr key={i} className="border-t"><td className="p-2">{t.uh || "—"}</td><td className="p-2">{t.guest || "—"}</td><td className="p-2 tabular-nums">{displayCents(t.paymentsCents)}</td><td className="p-2 tabular-nums">{displayCents(t.creditsCents)}</td></tr>)}</tbody></table></div>
+        <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-left"><tr>{["UH", "Hóspede", "Pagamentos", "Créditos"].map(h => <th key={h} className="p-2 font-medium">{h}</th>)}</tr></thead><tbody>{totals.map((t, i) => <tr key={i} className="border-t"><td className="p-2">{t.uh || "—"}</td><td className="p-2">{t.guest || "—"}</td><td className="p-2 tabular-nums"><div className="flex items-center gap-2"><span>{displayCents(t.paymentsCents)}</span><Button variant="ghost" size="icon" title="Copiar total de pagamentos" aria-label={`Copiar total de pagamentos ${i + 1}`} onClick={() => copyTotal(t.paymentsCents)}><Copy className="size-4" /></Button></div></td><td className="p-2 tabular-nums"><div className="flex items-center gap-2"><span>{displayCents(t.creditsCents)}</span><Button variant="ghost" size="icon" title="Copiar total de créditos" aria-label={`Copiar total de créditos ${i + 1}`} onClick={() => copyTotal(t.creditsCents)}><Copy className="size-4" /></Button></div></td></tr>)}</tbody></table></div>
         <div className="flex flex-wrap gap-2"><Button disabled={saving || showOriginal} variant="outline" onClick={() => void save(false)}><Save className="mr-2 size-4" />Salvar correções</Button><Button disabled={saving || showOriginal || !canConfirm(rows, duplicateReview) || (active.warnings.length > 0 && !warningReview)} onClick={() => void save(true)}>{saving && <Loader2 className="mr-2 size-4 animate-spin" />}Confirmar conferência</Button></div>
       </div>}
+      <AlertDialog open={deleteTarget !== null} onOpenChange={open => { if (!open && !deleting) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Apagar documento importado?</AlertDialogTitle><AlertDialogDescription className="break-words">O documento {deleteTarget?.file_name}, seu arquivo original e os dados deste processamento serão apagados da sua conta. Esta ação não pode ser desfeita. As exportações em Arquivos Gerados serão mantidas.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancelar</Button><Button variant="destructive" disabled={deleting} onClick={() => void removeDocument()}>{deleting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}Apagar documento</Button></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

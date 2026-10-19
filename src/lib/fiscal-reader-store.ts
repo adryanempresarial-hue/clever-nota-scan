@@ -47,3 +47,15 @@ export async function originalFiscalFile(run: FiscalRun) {
   if (error) throw new Error(error.message);
   return data;
 }
+export async function deleteFiscalRun(id: string) {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user) throw new Error("Entre na conta para apagar o documento.");
+  const { data: run, error: readError } = await supabase.from("fiscal_document_runs").select("id, storage_path").eq("id", id).eq("user_id", auth.user.id).single();
+  if (readError || !run) throw new Error("Documento não encontrado na sua conta.");
+  if (run.storage_path) {
+    const { error } = await supabase.storage.from("nota-files").remove([run.storage_path]);
+    if (error) throw new Error("Não foi possível apagar o arquivo original. Tente novamente.");
+  }
+  const { data: deleted, error } = await supabase.from("fiscal_document_runs").delete().eq("id", id).eq("user_id", auth.user.id).select("id");
+  if (error || !deleted?.length) throw new Error("Não foi possível remover o histórico. Tente novamente.");
+}
