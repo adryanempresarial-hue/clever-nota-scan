@@ -7,8 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Copy, Download, FileSearch, FileSpreadsheet, FileText, Loader2, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { FiscalResultsTable } from "./FiscalResultsTable";
 import { readFiscalDocument } from "@/lib/fiscal-reader.functions";
-import { calculateTotals, canConfirm, displayCents, paymentFields, paymentLabels, possibleDuplicates, rowDoubts } from "@/lib/fiscal-reader";
+import { calculateTotals, canConfirm, displayCents, paymentFields, possibleDuplicates } from "@/lib/fiscal-reader";
 import type { PaymentRow } from "@/lib/fiscal-reader";
 import { prepareDocument, READER_ACCEPT, unpackDocuments } from "@/lib/fiscal-reader-files";
 import { deleteFiscalRun, findFiscalRun, hashDocument, loadFiscalRuns, originalFiscalFile, saveFiscalReview, saveNewFiscalRun } from "@/lib/fiscal-reader-store";
@@ -121,10 +122,14 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
     setRows(previous => previous.map((r, i) => i === index ? { ...r, [field]: value, reviewed: false } : r));
     setDuplicateReview(false);
   };
+  const updatePayments = (index: number, payments: { brand: string; amount: string }[]) => {
+    setRows(previous => previous.map((r, i) => i === index ? { ...r, payments, brand: "", amount: "", reviewed: false } : r));
+    setDuplicateReview(false);
+  };
   const displayedRows = showOriginal ? active?.extracted_rows ?? [] : rows;
   const filtered = displayedRows.map((r, index) => ({ r, index })).filter(({ r }) => {
     const needle = resultSearch.toLocaleLowerCase("pt-BR");
-    return !needle || [...paymentFields.map(f => r[f]), r.source, r.cpf.replace(/\D/g, "")].some(v => v.toLocaleLowerCase("pt-BR").includes(needle));
+    return !needle || [...paymentFields.map(f => r[f] ?? ""), ...(r.payments ?? []).flatMap(p => [p.brand, p.amount]), r.source, r.cpf.replace(/\D/g, "")].some(v => v.toLocaleLowerCase("pt-BR").includes(needle));
   });
   return (
     <section className="space-y-5 border-t pt-6" aria-label="Leitor Inteligente de Documentos">
@@ -152,7 +157,7 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
           <Button variant={showOriginal ? "outline" : "default"} size="sm" onClick={() => { setShowOriginal(false); setRowPage(0); }}>Dados em revisão</Button>
           <Button variant={showOriginal ? "default" : "outline"} size="sm" onClick={() => { setShowOriginal(true); setRowPage(0); }}>Dados extraídos originais</Button>
           {active.storage_path && <Button variant="outline" size="sm" onClick={() => void originalFiscalFile(active).then(blob => downloadBlob(blob, active.file_name)).catch(error => toast.error(error.message))}><Download className="mr-2 size-4" />Original</Button>}
-          <Button variant="outline" size="sm" onClick={() => void copyFiscalText(fiscalCopyText(rows)).then(() => toast.success("Copiado")).catch(error => toast.error(error.message))}><Copy className="mr-2 size-4" />Copiar tudo</Button>
+          <Button variant="outline" size="sm" onClick={() => void copyFiscalText(fiscalCopyText(displayedRows)).then(() => toast.success("Copiado")).catch(error => toast.error(error.message))}><Copy className="mr-2 size-4" />Copiar tudo</Button>
           <Button variant="outline" size="sm" disabled={saving} onClick={() => void exportResult("xlsx")}><FileSpreadsheet className="mr-2 size-4" />Excel</Button>
           <Button variant="outline" size="sm" disabled={saving} onClick={() => void exportResult("pdf")}><FileText className="mr-2 size-4" />PDF</Button>
           <Button variant="outline" size="icon" className="text-destructive" disabled={busy || saving || deleting} title="Apagar documento importado" aria-label="Apagar documento importado" onClick={() => setDeleteTarget(active)}><Trash2 className="size-4" /></Button>
@@ -160,9 +165,7 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
         {active.warnings.length > 0 && <div className="space-y-2 border-l-2 border-destructive pl-3 text-sm"><h4 className="font-medium">Pendências do documento</h4><ul>{active.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul><label className="flex items-center gap-2"><Checkbox checked={warningReview} onCheckedChange={v => setWarningReview(v === true)} />Conferi e resolvi as pendências no original</label></div>}
         {duplicates.length > 0 && <div className="space-y-2 text-sm text-destructive"><p>{duplicates.length} linhas com possível duplicidade. Mantidas nos totais.</p><label className="flex items-center gap-2"><Checkbox checked={duplicateReview} onCheckedChange={v => setDuplicateReview(v === true)} />Conferi: são pagamentos distintos</label></div>}
         <Input aria-label="Pesquisar resultados do documento" placeholder="Pesquisar neste documento" value={resultSearch} onChange={e => { setResultSearch(e.target.value); setRowPage(0); }} />
-        <div className="overflow-x-auto rounded-md border"><table className="w-full text-sm"><thead className="bg-muted text-left"><tr>{[...paymentLabels, "Conferência", "Cópia"].map(h => <th key={h} className="p-2 font-medium">{h}</th>)}</tr></thead><tbody>
-          {filtered.slice(rowPage * 25, rowPage * 25 + 25).map(({ r, index }) => <tr key={index} className="border-t align-top">{paymentFields.map((field, i) => <td key={field} className="p-2">{showOriginal ? <span className="block min-w-24 whitespace-pre-wrap">{r[field] || "—"}</span> : <div><Input className={field === "guest" ? "min-w-44" : "min-w-28"} aria-label={`${paymentLabels[i]} linha ${index + 1}`} value={r[field]} onChange={e => update(index, field, e.target.value)} />{active.extracted_rows[index]?.[field] !== r[field] && <span className="text-xs text-muted-foreground">Corrigido · original: {active.extracted_rows[index]?.[field] || "vazio"}</span>}</div>}</td>)}<td className="min-w-44 p-2">{!showOriginal && <label className="flex items-center gap-2"><Checkbox aria-label={`Conferir linha ${index + 1}`} checked={r.reviewed} onCheckedChange={v => setRows(previous => previous.map((item, j) => j === index ? { ...item, reviewed: v === true } : item))} />Conferido</label>}{!r.reviewed && <div className="mt-1 text-xs text-destructive">{rowDoubts(r).join("; ") || "Aguardando revisão"}</div>}{duplicates.includes(index) && <span className="text-xs text-destructive">Possível duplicidade</span>}</td><td className="p-2"><Button size="icon" variant="ghost" title="Copiar linha" aria-label={`Copiar linha ${index + 1}`} onClick={() => void copyFiscalText(fiscalCopyText([r])).then(() => toast.success("Copiado")).catch(error => toast.error(error.message))}><Copy className="size-4" /></Button></td></tr>)}
-        </tbody></table></div>
+        <FiscalResultsTable entries={filtered.slice(rowPage * 25, rowPage * 25 + 25)} originals={active.extracted_rows} original={showOriginal} duplicates={duplicates} update={update} updatePayments={updatePayments} review={(index, checked) => setRows(previous => previous.map((r, i) => i === index ? { ...r, reviewed: checked } : r))} copy={r => void copyFiscalText(fiscalCopyText([r])).then(() => toast.success("Copiado")).catch(error => toast.error(error.message))} copyTotal={copyTotal} />
         <div className="flex items-center justify-end gap-3 text-sm"><span>{filtered.length} linhas</span><Button size="sm" variant="outline" disabled={rowPage === 0} onClick={() => setRowPage(p => p - 1)}>Linhas anteriores</Button><Button size="sm" variant="outline" disabled={(rowPage + 1) * 25 >= filtered.length} onClick={() => setRowPage(p => p + 1)}>Próximas linhas</Button></div>
         <h4 className="text-sm font-semibold">Totais por UH e hóspede · valores legíveis{!isConfirmed && " · provisórios"}</h4>
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="text-left"><tr>{["UH", "Hóspede", "Pagamentos", "Créditos"].map(h => <th key={h} className="p-2 font-medium">{h}</th>)}</tr></thead><tbody>{totals.map((t, i) => <tr key={i} className="border-t"><td className="p-2">{t.uh || "—"}</td><td className="p-2">{t.guest || "—"}</td><td className="p-2 tabular-nums"><div className="flex items-center gap-2"><span>{displayCents(t.paymentsCents)}</span><Button variant="ghost" size="icon" title="Copiar total de pagamentos" aria-label={`Copiar total de pagamentos ${i + 1}`} onClick={() => copyTotal(t.paymentsCents)}><Copy className="size-4" /></Button></div></td><td className="p-2 tabular-nums"><div className="flex items-center gap-2"><span>{displayCents(t.creditsCents)}</span><Button variant="ghost" size="icon" title="Copiar total de créditos" aria-label={`Copiar total de créditos ${i + 1}`} onClick={() => copyTotal(t.creditsCents)}><Copy className="size-4" /></Button></div></td></tr>)}</tbody></table></div>
