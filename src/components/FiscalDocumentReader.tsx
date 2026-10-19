@@ -60,13 +60,13 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
           let prepared: Awaited<ReturnType<typeof prepareDocument>>;
           try { prepared = await prepareDocument(file); } catch (error) { issues.push(`${file.name}: ${error instanceof Error ? error.message : "Não foi possível ler"}`); continue; }
           let extractedRows: PaymentRow[];
-          let warnings: string[] = [];
-          if (prepared.rows) extractedRows = prepared.rows;
-          else {
+          let warnings: string[] = prepared.warnings ?? [];
+          extractedRows = prepared.rows ?? [];
+          if (prepared.text || prepared.base64) {
             // A terminal AI error stops the whole import; no retries or substitute models.
             const output = await extract({ data: { name: file.name, text: prepared.text, mimeType: prepared.mimeType as "application/pdf" | "image/png" | "image/jpeg" | undefined, base64: prepared.base64 } });
-            warnings = output.warnings;
-            extractedRows = output.rows.map(r => ({ ...r, source: file.name, reviewed: false }));
+            warnings = [...warnings, ...output.warnings];
+            extractedRows = [...extractedRows, ...output.rows.map(r => ({ ...r, source: file.name, reviewed: false }))];
           }
           if (!extractedRows.length) warnings.push("Nenhum pagamento identificado. Confira o documento original.");
           const run = await saveNewFiscalRun(file, hash, extractedRows, warnings);

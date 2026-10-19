@@ -21,7 +21,7 @@ export async function unpackDocuments(file: File): Promise<{ files: File[]; warn
   }
   return { files, warnings };
 }
-export async function prepareDocument(file: File): Promise<{ rows?: PaymentRow[]; text?: string; mimeType?: string; base64?: string }> {
+export async function prepareDocument(file: File): Promise<{ rows?: PaymentRow[]; text?: string; mimeType?: string; base64?: string; warnings?: string[] }> {
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (["xlsx", "xls", "csv"].includes(ext ?? "")) {
     const XLSX = await import("xlsx");
@@ -35,8 +35,8 @@ export async function prepareDocument(file: File): Promise<{ rows?: PaymentRow[]
       else if (matrix.length) unmatched.push(`Planilha ${name}:\n${matrix.map(r => r.join("\t")).join("\n")}`);
     }
     if (!unmatched.length) return { rows: all };
-    // Mixed worksheets go together to OCR, not silently discarded.
-    return { text: workbook.SheetNames.map(name => `Planilha ${name}:\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name], { FS: "\t" })}`).join("\n\n") };
+    // Keep exact local results and analyze only the unmatched worksheets.
+    return { rows: all, text: unmatched.join("\n\n") };
   }
   if (ext === "docx") {
     const { unzipSync, strFromU8 } = await import("fflate");
@@ -46,7 +46,7 @@ export async function prepareDocument(file: File): Promise<{ rows?: PaymentRow[]
     const parsed = new DOMParser().parseFromString(strFromU8(xml), "application/xml");
     const text = Array.from(parsed.getElementsByTagName("w:p")).map(p => Array.from(p.getElementsByTagName("w:t")).map(t => t.textContent).join(" ")).join("\n");
     if (!text.trim()) throw new Error("DOCX sem texto: envie as imagens incorporadas como JPG/PNG ou PDF.");
-    return { text };
+    return { text, warnings: Object.keys(entries).some(name => name.startsWith("word/media/")) ? ["O DOCX contém imagens incorporadas não analisadas. Envie-as como JPG/PNG ou PDF e confira o original."] : [] };
   }
   const mimeType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : ["jpg", "jpeg"].includes(ext ?? "") ? "image/jpeg" : "";
   if (!mimeType) throw new Error(`${file.name}: formato não suportado.`);
