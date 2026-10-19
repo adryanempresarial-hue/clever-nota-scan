@@ -13,3 +13,4 @@
 - Store fiscal runs with user-scoped RLS and a unique content hash; retain immutable extracted rows separately from reviewed corrections and calculate totals in integer cents.
 - Parse structured spreadsheets and ZIP/DOCX locally; send only unstructured document content to an authenticated server function with request-local AI providers.
 - Keep executable domain-rule tests under tests/ so test-runner imports do not enter application compilation.
+- Fiscal reader result rows support optional source page/comp and nested payments with a legacy scalar fallback; share computed result/export rules to preserve existing history without a schema migration.
