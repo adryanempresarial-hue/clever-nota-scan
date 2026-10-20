@@ -1,4 +1,5 @@
 # Intelligent fiscal document reader
+- [ ] Fit fiscal results within the screen and join guest apartments into quick search without changing standard copy or calculations; verify on screen.
 - [x] Add isolated reader, local spreadsheet/DOCX/archive parsing and authenticated OCR.
 - [x] Persist original extraction, corrections, totals and private originals by account.
 - [x] Add history, search, review, copying and Excel/PDF exports.
