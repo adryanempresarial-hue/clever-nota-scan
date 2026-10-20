@@ -12,6 +12,18 @@ export async function loadFiscalRuns(search: string, page: number) {
   if (error) throw new Error(error.message);
   return { runs: (data ?? []).map(asRun), count: count ?? 0 };
 }
+// Read the entire account history, independent of the search and visible page.
+export async function loadAllFiscalRuns() {
+  const runs: FiscalRun[] = [];
+  const size = 250;
+  for (let offset = 0; ; offset += size) {
+    const { data, error } = await supabase.from("fiscal_document_runs").select("*").order("created_at", { ascending: false }).order("id").range(offset, offset + size - 1);
+    if (error) throw new Error(error.message);
+    const batch = (data ?? []).map(asRun);
+    runs.push(...batch);
+    if (batch.length < size) return runs;
+  }
+}
 export async function hashDocument(file: File) {
   const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
