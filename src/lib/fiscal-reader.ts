@@ -1,7 +1,7 @@
 export type PaymentRow = {
   uh: string; guest: string; cpf: string; credit: string; brand: string; amount: string;
   page?: string; comp?: string; payments?: { brand: string; amount: string }[];
-  source: string; doubts: string[]; reviewed: boolean;
+  source: string; doubts: string[]; reviewed: boolean; excluded?: boolean;
 };
 export type FiscalTotal = { uh: string; guest: string; paymentsCents: number; creditsCents: number };
 export const paymentFields = ["page", "uh", "comp", "guest", "cpf", "credit", "brand", "amount"] as const;
@@ -47,6 +47,7 @@ export function rowDoubts(row: PaymentRow): string[] {
 export function possibleDuplicates(rows: PaymentRow[]): number[] {
   const groups = new Map<string, number[]>();
   rows.forEach((r, i) => {
+    if (r.excluded) return;
     const key = JSON.stringify([paymentFields.map(f => f === "amount" || f === "credit" ? moneyCents(r[f] ?? "") ?? cleanCell(r[f]) : f === "cpf" ? r[f].replace(/\D/g, "") : cleanCell(r[f]).toLocaleLowerCase("pt-BR")), rowPayments(r).map(p => [cleanCell(p.brand).toLowerCase(), moneyCents(p.amount) ?? p.amount])]);
     groups.set(key, [...(groups.get(key) ?? []), i]);
   });
@@ -55,6 +56,7 @@ export function possibleDuplicates(rows: PaymentRow[]): number[] {
 export function calculateTotals(rows: PaymentRow[]): FiscalTotal[] {
   const groups = new Map<string, FiscalTotal>();
   for (const r of rows) {
+    if (r.excluded) continue;
     const key = JSON.stringify([r.uh.trim(), r.guest.trim().toLocaleLowerCase("pt-BR"), r.cpf.replace(/\D/g, "")]);
     const group = groups.get(key) ?? { uh: r.uh, guest: r.guest, paymentsCents: 0, creditsCents: 0 };
     group.paymentsCents += rowPayments(r).reduce((sum, p) => sum + (moneyCents(p.amount) ?? 0), 0);
@@ -63,7 +65,8 @@ export function calculateTotals(rows: PaymentRow[]): FiscalTotal[] {
   }
   return [...groups.values()];
 }
-export function canConfirm(rows: PaymentRow[], duplicatesReviewed: boolean): boolean {
+export function canConfirm(all: PaymentRow[], duplicatesReviewed: boolean): boolean {
+  const rows = all.filter(r => !r.excluded);
   return rows.length > 0 && rows.every(r => r.reviewed && r.uh.trim() && r.guest.trim() &&
     calculatedRowTotal(r) !== null) &&
     (possibleDuplicates(rows).length === 0 || duplicatesReviewed);
@@ -103,4 +106,10 @@ export function parsePaymentSheet(matrix: unknown[][], source: string): PaymentR
     rows.push(row);
   }
   return rows;
+}// Same split as the Cálculo Fiscal: service %, food % of the remainder, cold drinks the rest. Integer cents.
+export function fiscalSplit(totalCents: number, servicePct = 30, foodPct = 30) {
+  const servico = Math.round(totalCents * servicePct / 100);
+  const alimentacao = Math.round((totalCents - servico) * foodPct / 100);
+  return { total: totalCents, servico, alimentacao, bebidas: totalCents - servico - alimentacao };
 }
+export const documentTotalCents = (rows: PaymentRow[]) => rows.reduce((sum, r) => sum + (r.excluded ? 0 : calculatedRowTotal(r) ?? 0), 0);
