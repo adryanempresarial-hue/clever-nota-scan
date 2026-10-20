@@ -23,4 +23,8 @@ describe("Fiscal reader rules", () => {
   test("unreadable amounts are not confirmed", () => expect(canConfirm([{ ...row, amount: "ilegível", reviewed: true }], true)).toBe(false));
   test("unreviewed rows are not confirmed", () => expect(canConfirm([row], true)).toBe(false));
   test("spreadsheet extraction preserves CPF zeros and original values", () => { const rows = parsePaymentSheet([["UH", "Hóspede", "CPF", "Créditos", "Bandeira", "Pagamento"], ["21", "Ana", "05310306790", "NULL", "Visa", "2.000"]], "arquivo.xls"); expect(rows?.[0].cpf).toBe("05310306790"); expect(rows?.[0].amount).toBe("2.000"); expect(rows?.[0].credit).toBe(""); });
+});import { fiscalSplit, documentTotalCents } from "../src/lib/fiscal-reader";
+describe("Document fiscal split", () => {
+  test("splits like Cálculo Fiscal and closes to the total", () => { const s = fiscalSplit(13037289); expect(s.servico).toBe(3911187); expect(s.alimentacao).toBe(2737831); expect(s.bebidas).toBe(6388271); expect(s.servico + s.alimentacao + s.bebidas).toBe(13037289); });
+  test("excluded rows leave totals", () => { const r = { uh: "21", guest: "Ana", cpf: "", credit: "", brand: "", amount: "100,00", source: "x", doubts: [], reviewed: true }; expect(documentTotalCents([r, { ...r, excluded: true }])).toBe(10000); });
 });
