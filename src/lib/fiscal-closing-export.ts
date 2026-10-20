@@ -26,6 +26,7 @@ export async function buildClosingWorkbook(rows: PaymentRow[], isoDate: string) 
   if (!res.ok) throw new Error("Modelo de fechamento indisponível.");
   const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
   files["xl/worksheets/sheet1.xml"] = strToU8(fillClosingSheet(strFromU8(files["xl/worksheets/sheet1.xml"]), closingEntries(rows), isoDate));
+  for (const sheet of ["xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"]) if (files[sheet]) files[sheet] = strToU8(strFromU8(files[sheet]).replace(/(<f[^>]*>[^<]*<\/f>|<f[^>]*\/>)<v>[^<]*<\/v>/g, "$1"));
   files["xl/workbook.xml"] = strToU8(strFromU8(files["xl/workbook.xml"]).replace(/<calcPr([^/]*)\/>/, '<calcPr$1 fullCalcOnLoad="1"/>'));
   delete files["xl/calcChain.xml"];
   if (files["[Content_Types].xml"]) files["[Content_Types].xml"] = strToU8(strFromU8(files["[Content_Types].xml"]).replace(/<Override PartName="\/xl\/calcChain.xml"[^>]*\/>/, ""));
