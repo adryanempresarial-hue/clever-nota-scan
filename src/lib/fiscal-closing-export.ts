@@ -49,7 +49,7 @@ export function fillClosingSheets(launch: string, closing: string, entries: { uh
     const status = e.uh ? "Completo" : "Falta apartamento";
     sum.c += e.cents; sum.d += s.servico; sum.f += s.alimentacao; sum.g += s.bebidas; sum.h += s.consumo;
     const item = row - FIRST + 1;
-    a.set(`A${row}`, item); a.set(`B${row}`, { input: e.uh }); a.set(`C${row}`, money(e.cents) as unknown as number);
+    a.set(`A${row}`, item); a.set(`B${row}`, { input: e.uh }); a.set(`C${row}`, Number(money(e.cents)));
     a.set(`D${row}`, Number(money(s.servico))); a.set(`F${row}`, Number(money(s.alimentacao))); a.set(`G${row}`, Number(money(s.bebidas))); a.set(`H${row}`, Number(money(s.consumo))); a.set(`I${row}`, 0); a.set(`J${row}`, status);
     b.set(`A${row}`, item); b.set(`B${row}`, e.uh); b.set(`C${row}`, Number(money(e.cents)));
     b.set(`D${row}`, Number(money(sum.d))); b.set(`F${row}`, Number(money(sum.f))); b.set(`G${row}`, Number(money(sum.g))); b.set(`H${row}`, Number(money(sum.h))); b.set(`I${row}`, Number(money(sum.c))); b.set(`J${row}`, status);

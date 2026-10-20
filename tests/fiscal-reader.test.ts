@@ -28,11 +28,12 @@ describe("Document fiscal split", () => {
   test("splits like Cálculo Fiscal and closes to the total", () => { const s = fiscalSplit(13037289); expect(s.servico).toBe(3911187); expect(s.alimentacao).toBe(2737831); expect(s.bebidas).toBe(6388271); expect(s.servico + s.alimentacao + s.bebidas).toBe(13037289); });
   test("excluded rows leave totals", () => { const r = { uh: "21", guest: "Ana", cpf: "", credit: "", brand: "", amount: "100,00", source: "x", doubts: [], reviewed: true }; expect(documentTotalCents([r, { ...r, excluded: true }])).toBe(10000); });
 });
-import { fillClosingSheet, closingEntries } from "../src/lib/fiscal-closing-export";
+import { fillClosingSheets, closingEntries } from "../src/lib/fiscal-closing-export";
 describe("Fechamento Verdes Vales export", () => {
-  test("fills apartment, package value and edited date", () => {
-    const xml = fillClosingSheet('<c r="C4" s="2"><v>46310</v></c><c r="B9" s="8" t="s"><v>22</v></c><c r="C9" s="9"><v>3439.52</v></c><c r="B10" s="8"/><c r="C10" s="9"/>', [{ uh: "023", cents: 493960 }], "2026-10-20");
-    expect(xml).toContain('<c r="C4" s="2"><v>46315</v></c>'); expect(xml).toContain("<t>023</t>"); expect(xml).toContain('<c r="C9" s="9"><v>4939.60</v></c>'); expect(xml).toContain('<c r="B10" s="8"/>');
+  test("fills every column with computed values and edited date", () => {
+    const { launch, closing } = fillClosingSheets('<c r="C4" s="2"><v>46310</v></c><c r="B9" s="8" t="s"><v>22</v></c><c r="C9" s="9"><v>1</v></c><c r="D9" s="10"><f>X</f><v>1</v></c><c r="G9" s="11"><f t="shared" si="2"/></c><c r="J9" s="13" t="str"><f>Y</f><v>Completo</v></c>', '<c r="C5" s="16"><f>S</f><v>1</v></c><c r="I9" s="12"><f>Z</f><v>1</v></c>', [{ uh: "023", cents: 493960 }], "2026-10-20");
+    expect(launch).toContain('<c r="C4" s="2"><v>46315</v></c>'); expect(launch).toContain("<t>023</t>"); expect(launch).toContain('<c r="D9" s="10"><f>X</f><v>1481.88</v></c>'); expect(launch).toContain('<c r="G9" s="11"><f t="shared" si="2"/><v>2420.4</v></c>');
+    expect(closing).toContain('<c r="C5" s="16"><f>S</f><v>4939.6</v></c>'); expect(closing).toContain('<v>4939.6</v></c>');
   });
   test("excluded and unreadable rows are left out", () => { const r = { uh: "21", guest: "A", cpf: "", credit: "", brand: "", amount: "10,00", source: "", doubts: [], reviewed: true }; expect(closingEntries([r, { ...r, excluded: true }, { ...r, amount: "x" }])).toEqual([{ uh: "21", cents: 1000 }]); });
 });
