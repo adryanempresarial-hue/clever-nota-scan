@@ -14,3 +14,4 @@
 - Parse structured spreadsheets and ZIP/DOCX locally; send only unstructured document content to an authenticated server function with request-local AI providers.
 - Keep executable domain-rule tests under tests/ so test-runner imports do not enter application compilation.
 - Fiscal reader result rows support optional source page/comp and nested payments with a legacy scalar fallback; share computed result/export rules to preserve existing history without a schema migration.
+- The Fechamento Verdes Vales export fills the user's template in public/templates via fflate XML edits (preserves formulas/styles, forces recalc on open); never rebuild it with SheetJS, which drops styles.
