@@ -8,7 +8,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Copy, Download, FileSearch, FileSpreadsheet, FileText, Loader2, RefreshCw, Save, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { FiscalResultsTable } from "./FiscalResultsTable";
-import { buildClosingWorkbook } from "@/lib/fiscal-closing-export";
+import { FiscalClosingExport } from "./FiscalClosingExport";
 import { readFiscalDocument } from "@/lib/fiscal-reader.functions";
 import { calculateTotals, canConfirm, displayCents, documentTotalCents, fiscalSplit, paymentFields, possibleDuplicates } from "@/lib/fiscal-reader";
 import type { PaymentRow } from "@/lib/fiscal-reader";
@@ -41,18 +41,6 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
   const history = useQuery({ queryKey: ["fiscal-runs", debounced, page], queryFn: () => loadFiscalRuns(debounced, page) });
   const duplicates = useMemo(() => possibleDuplicates(rows), [rows]);
   const totals = useMemo(() => calculateTotals(rows), [rows]);
-  const [closingDate, setClosingDate] = useState(() => new Date().toISOString().slice(0, 10));
-  useEffect(() => { const saved = localStorage.getItem("fiscal-closing-date"); if (saved) setClosingDate(saved); }, []);
-  const exportClosing = async () => {
-    if (!closingDate) { toast.error("Informe a data do fechamento."); return; }
-    try {
-      const blob = await buildClosingWorkbook(rows, closingDate);
-      const name = `Fechamento_Verdes_Vales_${closingDate}.xlsx`;
-      downloadBlob(blob, name);
-      await onSaveFile(blob, name, "xlsx", rows.length).catch(() => undefined);
-      toast.success("Fechamento exportado");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao exportar"); }
-  };
   const split = useMemo(() => fiscalSplit(documentTotalCents(rows)), [rows]);
   const isConfirmed = active?.status === "confirmed" && JSON.stringify(rows) === JSON.stringify(active.corrected_rows);
   const copyTotal = (cents: number) => void copyFiscalText(displayCents(cents)).then(() => toast.success("Copiado")).catch(error => toast.error(error.message));
@@ -150,7 +138,7 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 font-semibold"><FileSearch className="size-5 text-primary" />Leitor Inteligente de Documentos</h2>
         <input ref={fileInput} type="file" accept={READER_ACCEPT} multiple className="hidden" aria-label="Documentos do leitor inteligente" onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) void runImport(files); }} />
-        <Button disabled={busy} onClick={() => fileInput.current?.click()}><Upload className="mr-2 size-4" />Importar documentos</Button>
+        <div className="flex flex-wrap gap-2"><FiscalClosingExport disabled={busy || saving || deleting} current={active ? { id: active.id, rows } : undefined} onSaveFile={onSaveFile} /><Button disabled={busy} onClick={() => fileInput.current?.click()}><Upload className="mr-2 size-4" />Importar documentos</Button></div>
       </div>
       {(busy || progress) && <div role="status" className="flex items-center gap-2 text-sm text-muted-foreground">{busy && <Loader2 className="size-4 animate-spin" />}<span className="break-all">{progress}</span></div>}
       {notices.length > 0 && <ul role="alert" className="space-y-1 border-l-2 border-destructive pl-3 text-sm">{notices.map((n, i) => <li key={i}>{n}</li>)}</ul>}

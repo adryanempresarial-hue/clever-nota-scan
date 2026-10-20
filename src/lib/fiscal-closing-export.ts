@@ -8,6 +8,9 @@ const FIRST = 9, LAST = 1008;
 type Value = number | string | { input: string } | { serial: number };
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 export const closingEntries = (rows: PaymentRow[]) => rows.filter(r => !r.excluded).map(r => ({ uh: r.uh.trim(), cents: calculatedRowTotal(r) })).filter((e): e is { uh: string; cents: number } => e.cents !== null);
+export function selectedClosingRows(runs: { id: string; corrected_rows: PaymentRow[] }[], selected: ReadonlySet<string>, current?: { id: string; rows: PaymentRow[] }) {
+  return runs.filter(run => selected.has(run.id)).flatMap(run => current?.id === run.id ? current.rows : run.corrected_rows);
+}
 const excelSerial = (iso: string) => { const [y, m, d] = iso.split("-").map(Number); return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000); };
 const money = (cents: number) => (cents / 100).toFixed(2);
 
@@ -21,7 +24,8 @@ export function closingSplit(cents: number) {
 function applyCells(xml: string, cells: Map<string, Value>) {
   return xml.replace(/<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g, (match, ref: string, attrs: string, inner = "") => {
     if (!cells.has(ref)) return match;
-    const value = cells.get(ref)!;
+    const value = cells.get(ref);
+    if (value === undefined) return match;
     const style = attrs.match(/ s="\d+"/)?.[0] ?? "";
     const formula = inner.match(/<f[^>]*\/>|<f[^>]*>[\s\S]*?<\/f>/)?.[0] ?? "";
     if (typeof value === "object" && "input" in value) return value.input ? `<c r="${ref}"${style} t="inlineStr"><is><t>${esc(value.input)}</t></is></c>` : `<c r="${ref}"${style}/>`;

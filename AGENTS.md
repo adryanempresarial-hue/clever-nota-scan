@@ -15,3 +15,4 @@
 - Keep executable domain-rule tests under tests/ so test-runner imports do not enter application compilation.
 - Fiscal reader result rows support optional source page/comp and nested payments with a legacy scalar fallback; share computed result/export rules to preserve existing history without a schema migration.
 - The Fechamento Verdes Vales export fills the user's template in public/templates via fflate XML edits (preserves formulas/styles, forces recalc on open); never rebuild it with SheetJS, which drops styles.
+- Keep combined closing selection in FiscalClosingExport, loading the complete private history with pagination and sharing selected-row assembly with tests; visible history filters must never limit export choices.
