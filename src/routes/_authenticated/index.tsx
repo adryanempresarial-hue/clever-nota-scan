@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { loadAllFiscalRuns } from "@/lib/fiscal-reader-store";
+import { scannedSearch, scannedCopyText } from "@/lib/scanned-search";
 import {
   Upload,
   FileText,
@@ -1390,69 +1393,15 @@ function QuickSnippets({
   const { records: crmRecords } = useCrmRecords();
   const [query, setQuery] = useState("");
 
-  const normalize = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-  const digits = (s: string) => s.replace(/\D+/g, "");
-
-  type SearchHit = {
-    key: string;
-    source: "Nota" | "CRM";
-    title: string;
-    subtitle: string;
-    lines: { label: string; value: string }[];
-  };
-
-  const hits = useMemo<SearchHit[]>(() => {
-    const q = query.trim();
-    if (q.length < 2) return [];
-    const qn = normalize(q);
-    const qd = digits(q);
-    const results: SearchHit[] = [];
-    for (const r of notaRecords) {
-      const nome = r.nome || "";
-      const cpf = r.cpf || "";
-      const matchName = nome && normalize(nome).includes(qn);
-      const matchCpf = qd.length >= 3 && cpf && digits(cpf).includes(qd);
-      if (!matchName && !matchCpf) continue;
-      results.push({
-        key: `nota-${r._id ?? nome + cpf}`,
-        source: "Nota",
-        title: nome || "(sem nome)",
-        subtitle: r._arquivo || "",
-        lines: [
-          { label: "Nome", value: nome },
-          { label: "CPF", value: cpf },
-          { label: "Telefone", value: r.telefone || "" },
-          { label: "E-mail", value: r.email || "" },
-          { label: "CEP", value: r.cep || "" },
-          { label: "Número", value: r.numero || "" },
-        ].filter((l) => l.value),
-      });
-    }
-    for (const r of crmRecords) {
-      const nomeField = r.campos.find((c) => /nome|raz[aã]o/i.test(c.rotulo));
-      const cpfField = r.campos.find((c) => /cpf|cnpj/i.test(c.rotulo));
-      const nome = nomeField?.valor ?? "";
-      const cpf = cpfField?.valor ?? "";
-      const matchName = nome && normalize(nome).includes(qn);
-      const matchCpf = qd.length >= 3 && cpf && digits(cpf).includes(qd);
-      if (!matchName && !matchCpf) continue;
-      results.push({
-        key: `crm-${r.id}`,
-        source: "CRM",
-        title: nome || "(sem nome)",
-        subtitle: r.arquivo || "",
-        lines: r.campos
-          .filter((c) => c.valor)
-          .slice(0, 8)
-          .map((c) => ({ label: c.rotulo, value: c.valor })),
-      });
-    }
-    return results.slice(0, 20);
-  }, [query, notaRecords, crmRecords]);
+  const fiscalHistory = useQuery({
+    queryKey: ["quick-search-fiscal-history"],
+    queryFn: loadAllFiscalRuns,
+    enabled: query.trim().length >= 2,
+    staleTime: 0,
+  });
+  const hits = useMemo(() => scannedSearch(query, notaRecords, crmRecords,
+    (fiscalHistory.data ?? []).flatMap(run => run.corrected_rows)),
+    [query, notaRecords, crmRecords, fiscalHistory.data]);
 
   useEffect(() => {
     setMounted(true);
@@ -1545,7 +1494,9 @@ function QuickSnippets({
           )}
         </div>
         {query.trim().length >= 2 && (
-          <div className="rounded-md border bg-muted/20 max-h-80 overflow-auto divide-y">
+          <div className="rounded-md border bg-muted/20 max-h-80 overflow-y-auto divide-y">
+            {fiscalHistory.isFetching && <p role="status" className="p-3 text-xs text-muted-foreground">Buscando apartamentos…</p>}
+            {fiscalHistory.error && <p role="alert" className="p-3 text-xs text-destructive">Não foi possível consultar os apartamentos. Tente novamente.</p>}
             {hits.length === 0 ? (
               <div className="p-3 text-sm text-muted-foreground">
                 Nenhum registro encontrado.
@@ -1553,7 +1504,7 @@ function QuickSnippets({
             ) : (
               hits.map((h) => (
                 <div key={h.key} className="p-3 space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-sm font-medium truncate">{h.title}</div>
                       {h.subtitle && (
@@ -1567,13 +1518,17 @@ function QuickSnippets({
                         {h.source}
                       </span>
                       <CopyButton
-                        value={h.lines.map((l) => `${l.label}: ${l.value}`).join("\n")}
+                        value={scannedCopyText(h)}
                         label={`${h.title} completo`}
                         text="Copiar tudo"
                       />
                     </div>
                   </div>
                   <div className="grid gap-1">
+                    {h.apartments.map(apartment => <div key={apartment} className="flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0"><span className="text-muted-foreground">Apartamento / UH:</span>{" "}<span className="font-medium break-words">{apartment}</span></div>
+                      <CopyButton value={apartment} label="Apartamento / UH" />
+                    </div>)}
                     {h.lines.map((l, i) => (
                       <div
                         key={i}
