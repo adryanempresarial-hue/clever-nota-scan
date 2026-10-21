@@ -142,3 +142,19 @@
     color: var(--color-foreground);
   }
 }
+
+.fiscal-results th, .fiscal-results td { overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 1199px) {
+  .fiscal-results table, .fiscal-results tbody { display: block; }
+  .fiscal-results thead { display: none; }
+  .fiscal-results tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fiscal-results td { border-right: 0; }
+  .fiscal-results td::before { content: attr(data-label); display: block; margin-bottom: .5rem; font-size: .75rem; font-weight: 600; color: var(--muted-foreground); }
+}
+@media (max-width: 639px) {
+  .fiscal-results tr { grid-template-columns: minmax(0, 1fr); }
+  .fiscal-history table, .fiscal-history tbody { display: block; }
+  .fiscal-history thead { display: none; }
+  .fiscal-history tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fiscal-history td { white-space: normal; overflow-wrap: anywhere; }
+}

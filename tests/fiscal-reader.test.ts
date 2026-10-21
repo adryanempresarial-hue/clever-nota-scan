@@ -2,6 +2,20 @@ import { describe, test, expect } from "bun:test";
 import { moneyCents, calculateTotals, possibleDuplicates, canConfirm, parsePaymentSheet, calculatedRowTotal, readingStatus } from "../src/lib/fiscal-reader";
 const row = { uh: "21", guest: "Ana", cpf: "05310306790", credit: "", brand: "Visa", amount: "2.000", source: "arquivo.xls", doubts: [], reviewed: false };
 describe("Fiscal reader rules", () => {
+  test("uses Hóspede regardless of column order and discards Responsável", () => {
+    for (const [headers, cells] of [
+      [["UH", "Hóspede", "Responsável", "Nome", "Pagamento"], ["021", "Ana hóspede", "Responsável diferente", "Outro nome", "100,00"]],
+      [["UH", "Nome", "Responsável", "Hóspede", "Pagamento"], ["021", "Outro nome", "Responsável diferente", "Ana hóspede", "100,00"]],
+    ]) expect(parsePaymentSheet([headers, cells], "teste.xlsx")?.[0].guest).toBe("Ana hóspede");
+    expect(parsePaymentSheet([["UH", "Responsável", "Pagamento"], ["21", "Não é hóspede", "100,00"]], "teste.xlsx")?.[0].guest).toBe("");
+  });
+  test("corrected credits and payments recalculate totals and split without changing originals", () => {
+    const original = { ...row, credit: "100,00", payments: [{ brand: "Visa", amount: "200,00" }] };
+    const corrected = { ...original, credit: "150,00", payments: [{ brand: "Visa", amount: "250,00" }] };
+    expect(calculatedRowTotal(corrected)).toBe(40000);
+    expect(fiscalSplit(calculatedRowTotal(corrected) ?? 0)).toEqual({ total: 40000, servico: 12000, alimentacao: 8400, bebidas: 19600 });
+    expect(calculatedRowTotal(original)).toBe(30000);
+  });
   test("credits plus every payment form separate total without changing originals", () => {
     const record = { ...row, credit: "4.837,00", amount: "", payments: [{ brand: "MASTER", amount: "1.372,00" }, { brand: "MASTER", amount: "2.387,00" }] };
     expect(calculatedRowTotal(record)).toBe(859600);

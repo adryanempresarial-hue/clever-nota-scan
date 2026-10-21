@@ -1,6 +1,6 @@
 import type { PaymentRow } from "./fiscal-reader";
 
-type Contact = { nome?: string; cpf?: string; telefone?: string; email?: string; cep?: string; numero?: string; _id?: string; _arquivo?: string };
+type Contact = { nome?: string | null; cpf?: string | null; telefone?: string | null; email?: string | null; cep?: string | null; numero?: string | null; _id?: string; _arquivo?: string };
 type CrmContact = { id: string; arquivo?: string; campos: { rotulo: string; valor: string }[] };
 export type ScannedHit = { key: string; source: "Nota" | "CRM" | "Fiscal"; title: string; subtitle: string; lines: { label: string; value: string }[]; apartments: string[] };
 const normalized = (s: string) => s.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");

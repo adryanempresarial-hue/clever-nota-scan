@@ -17,3 +17,4 @@
 - The Fechamento Verdes Vales export fills the user's template in public/templates via fflate XML edits (preserves formulas/styles, forces recalc on open); never rebuild it with SheetJS, which drops styles.
 - Keep combined closing selection in FiscalClosingExport, loading the complete private history with pagination and sharing selected-row assembly with tests; visible history filters must never limit export choices.
 - Keep quick-search apartment matching and standard copy assembly in a browser-safe pure module; match CPF before exact normalized names and keep apartment metadata outside copied contact fields.
+- Keep fiscal pencil edits on source credits/payments; derived-value pencils open their underlying inputs so totals, splits and exports remain consistent with original preservation.

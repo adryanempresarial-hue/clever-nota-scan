@@ -6,7 +6,7 @@ export type PaymentRow = {
 export type FiscalTotal = { uh: string; guest: string; paymentsCents: number; creditsCents: number };
 export const paymentFields = ["page", "uh", "comp", "guest", "cpf", "credit", "brand", "amount"] as const;
 export const paymentLabels = ["Página de origem", "UH / apartamento", "Código/comp.", "Hóspede", "CPF", "Créditos", "Bandeira", "Pagamento"];
-export const resultHeaders = ["Página de origem", "UH", "Código/comp.", "Responsável / hóspede", "Créditos", "Meios de pagamento identificados", "Total calculado", "Situação"];
+export const resultHeaders = ["Página de origem", "UH", "Código/comp.", "Hóspede", "Créditos", "Meios de pagamento identificados", "Total calculado", "Situação"];
 export const rowPayments = (row: PaymentRow) => row.payments ?? (row.amount || row.brand ? [{ brand: row.brand, amount: row.amount }] : []);
 export function calculatedRowTotal(row: PaymentRow): number | null {
   const values = [row.credit, ...rowPayments(row).map(p => p.amount)].filter(v => v !== "");
@@ -76,7 +76,7 @@ const aliases: Record<typeof paymentFields[number], string[]> = {
   page: ["pagina", "pag", "pagina de origem"],
   comp: ["comp", "codigo", "codigo/comp", "comprovante"],
   uh: ["uh", "apartamento", "apart", "apto", "numero da uh", "unidade habitacional", "hub"],
-  guest: ["nome", "hospede", "nome do hospede", "cliente", "titular", "responsavel", "responsavel / hospede"],
+  guest: ["nome", "hospede", "nome do hospede", "cliente", "titular"],
   cpf: ["cpf", "cpf/cnpj", "documento"],
   credit: ["creditos", "credito", "valor credito"],
   brand: ["bandeira", "bandeira do cartao", "cartao"],
@@ -87,9 +87,15 @@ export function parsePaymentSheet(matrix: unknown[][], source: string): PaymentR
   let header = -1;
   for (let i = 0; i < matrix.length; i++) {
     const found: typeof columns = {};
+    let guestPriority = -1;
     matrix[i].forEach((v, c) => {
       const key = normalize(cleanCell(v));
-      for (const f of paymentFields) if (aliases[f].some(a => normalize(a) === key)) found[f] = c;
+      for (const f of paymentFields) if (aliases[f].some(a => normalize(a) === key)) {
+        if (f === "guest") {
+          const priority = key === "hospede" || key === "nomedohospede" ? 2 : 1;
+          if (priority > guestPriority) { found[f] = c; guestPriority = priority; }
+        } else found[f] = c;
+      }
     });
     if ((found.uh !== undefined || found.guest !== undefined) && (found.amount !== undefined || found.credit !== undefined)) {
       header = i; columns = found; break;
