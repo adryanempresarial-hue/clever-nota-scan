@@ -1,6 +1,6 @@
 # Intelligent fiscal document reader
-- [ ] Extract Hóspede instead of Responsável and add pencil editing with immediate recalculation; verify corrections and persistence.
-- [ ] Fit fiscal results within the screen and join guest apartments into quick search without changing standard copy or calculations; verify on screen.
+- [x] Extract Hóspede instead of Responsável and add pencil editing with immediate recalculation; source corrections, saved values and reload verified, with guest-priority tests.
+- [x] Fit fiscal results within the screen and join guest apartments into quick search without changing standard copy or calculations; verified at 949px and 390px, with authenticated guest search and clipboard checks.
 - [x] Add isolated reader, local spreadsheet/DOCX/archive parsing and authenticated OCR.
 - [x] Persist original extraction, corrections, totals and private originals by account.
 - [x] Add history, search, review, copying and Excel/PDF exports.
