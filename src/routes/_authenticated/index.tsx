@@ -809,9 +809,9 @@ function NotaTool() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="min-w-0 max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <Tabs defaultValue="processar" className="space-y-6">
-          <TabsList>
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="processar">
               <FileText className="w-4 h-4 mr-2" />
               Processar
