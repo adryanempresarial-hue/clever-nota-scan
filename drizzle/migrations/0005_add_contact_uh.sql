@@ -1,0 +1,2 @@
+ALTER TABLE public.nota_records ADD COLUMN IF NOT EXISTS uh text;
+COMMENT ON COLUMN public.nota_records.uh IS 'Extracted apartment/UH, separate from address number; preserves source text and leading zeros.';

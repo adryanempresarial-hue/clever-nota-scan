@@ -1,6 +1,7 @@
 # Intelligent fiscal document reader
-- [ ] Replace fiscal import AI fallback with local document text/OCR reading without AI credits; verify imports and unchanged calculations.
-- [ ] Add import-date filters to fiscal history and quick guest/apartment search; verify date boundaries and standard copy preservation.
+- [x] Show extracted apartment/UH in bold beside guest names on imported spreadsheet and fiscal results; verified source UH 021, persistence after reload and unchanged standard copy fields.
+- [x] Replace fiscal import AI fallback with local document text/OCR reading without AI credits; authenticated PDF and PNG imports saved correct values with zero AI calls, and 24 domain tests pass. Unrecognized layouts remain flagged for review.
+- [x] Add import-date filters to fiscal history and quick guest/apartment search; verified calendar controls, inclusive day boundaries, new-contact exclusion with older dates and standard copy preservation.
 - [x] Extract Hóspede instead of Responsável and add pencil editing with immediate recalculation; source corrections, saved values and reload verified, with guest-priority tests.
 - [x] Fit fiscal results within the screen and join guest apartments into quick search without changing standard copy or calculations; verified at 949px and 390px, with authenticated guest search and clipboard checks.
 - [x] Add isolated reader, local spreadsheet/DOCX/archive parsing and authenticated OCR.

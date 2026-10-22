@@ -2,12 +2,16 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { PaymentRow, FiscalTotal } from "./fiscal-reader";
 import { calculateTotals } from "./fiscal-reader";
+import { importDateBounds, type ImportDates } from "./import-dates";
 export type FiscalRun = { id: string; file_name: string; file_hash: string; storage_path: string | null; extracted_rows: PaymentRow[]; corrected_rows: PaymentRow[]; warnings: string[]; totals: FiscalTotal[]; status: string; created_at: string; updated_at: string };
 export const asRun = (value: unknown) => value as FiscalRun;
-export async function loadFiscalRuns(search: string, page: number) {
+export async function loadFiscalRuns(search: string, page: number, dates: ImportDates = {}) {
   // JSON is searched in the database, not only in the visible page.
   let query = supabase.from("fiscal_document_runs").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(page * 25, page * 25 + 24);
   if (search.trim()) query = query.ilike("search_text", `%${search.trim().replace(/[\\%_]/g, c => `\\${c}`)}%`);
+  const { start, end } = importDateBounds(dates);
+  if (start) query = query.gte("created_at", start);
+  if (end) query = query.lt("created_at", end);
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
   return { runs: (data ?? []).map(asRun), count: count ?? 0 };

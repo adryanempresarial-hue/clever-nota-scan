@@ -58,7 +58,7 @@ function clean(v: unknown): string | null {
 
 const DB_COLS = [
   "arquivo","dt_alteracao","dt_cadastro","nome","cpf","cnpj","email","telefone","cep",
-  "endereco","numero","bairro","cidade","estado","nota_fiscal","data","valor",
+  "endereco","numero","uh","bairro","cidade","estado","nota_fiscal","data","valor",
 ] as const;
 
 /** Remove valores tipo "null"/"N/A" das linhas já salvas no banco. */
@@ -96,6 +96,7 @@ function mapRow(r: Record<string, unknown>): CloudRecord {
     cep: c(r.cep),
     endereco: c(r.endereco),
     numero: c(r.numero),
+    uh: c(r.uh),
     bairro: c(r.bairro),
     cidade: c(r.cidade),
     estado: c(r.estado),
@@ -119,6 +120,7 @@ function toInsert(r: NotaRecord, user_id: string) {
     cep: r.cep ?? null,
     endereco: r.endereco ?? null,
     numero: r.numero ?? null,
+    uh: r.uh ?? null,
     bairro: r.bairro ?? null,
     cidade: r.cidade ?? null,
     estado: r.estado ?? null,
@@ -129,7 +131,7 @@ function toInsert(r: NotaRecord, user_id: string) {
 }
 
 const FIELDS = [
-  "dtAlteracao","dtCadastro","nome","cpf","cnpj","email","telefone","cep","endereco","numero",
+  "dtAlteracao","dtCadastro","nome","cpf","cnpj","email","telefone","cep","endereco","numero","uh",
   "bairro","cidade","estado","notaFiscal","data","valor",
 ] as const;
 
@@ -310,6 +312,7 @@ export function useCloudRecords() {
                   cep: r.cep,
                   endereco: r.endereco,
                   numero: r.numero,
+                  uh: r.uh,
                   bairro: r.bairro,
                   cidade: r.cidade,
                   estado: r.estado,
