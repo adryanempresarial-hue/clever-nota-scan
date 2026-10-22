@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +8,8 @@ import { Copy, Download, FileSearch, FileSpreadsheet, FileText, Loader2, Refresh
 import { toast } from "sonner";
 import { FiscalResultsTable } from "./FiscalResultsTable";
 import { FiscalClosingExport } from "./FiscalClosingExport";
-import { readFiscalDocument } from "@/lib/fiscal-reader.functions";
+import { ImportDateFilter } from "./ImportDateFilter";
+import type { ImportDates } from "@/lib/import-dates";
 import { calculateTotals, canConfirm, displayCents, documentTotalCents, fiscalSplit, paymentFields, possibleDuplicates } from "@/lib/fiscal-reader";
 import type { PaymentRow } from "@/lib/fiscal-reader";
 import { prepareDocument, READER_ACCEPT, unpackDocuments } from "@/lib/fiscal-reader-files";
@@ -19,7 +19,7 @@ import { copyFiscalText, downloadBlob, exportFiscalRun, fiscalCopyText } from "@
 
 type Props = { onSaveFile: (blob: Blob, name: string, kind: "pdf" | "xlsx", count: number) => Promise<void> };
 export function FiscalDocumentReader({ onSaveFile }: Props) {
-  const extract = useServerFn(readFiscalDocument);
+  const [importDates, setImportDates] = useState<ImportDates>({});
   const fileInput = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -38,7 +38,7 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<FiscalRun | null>(null);
   const [deleting, setDeleting] = useState(false);
   useEffect(() => { const timer = setTimeout(() => { setDebounced(search); setPage(0); }, 300); return () => clearTimeout(timer); }, [search]);
-  const history = useQuery({ queryKey: ["fiscal-runs", debounced, page], queryFn: () => loadFiscalRuns(debounced, page) });
+  const history = useQuery({ queryKey: ["fiscal-runs", debounced, page, importDates], queryFn: () => loadFiscalRuns(debounced, page, importDates) });
   const duplicates = useMemo(() => possibleDuplicates(rows), [rows]);
   const totals = useMemo(() => calculateTotals(rows), [rows]);
   const split = useMemo(() => fiscalSplit(documentTotalCents(rows)), [rows]);
@@ -78,16 +78,10 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
           const existing = await findFiscalRun(hash);
           if (existing) { open(existing); issues.push(`${file.name}: já processado; histórico existente aberto, sem duplicar dados.`); continue; }
           let prepared: Awaited<ReturnType<typeof prepareDocument>>;
-          try { prepared = await prepareDocument(file); } catch (error) { issues.push(`${file.name}: ${error instanceof Error ? error.message : "Não foi possível ler"}`); continue; }
+          try { prepared = await prepareDocument(file, setProgress); } catch (error) { issues.push(`${file.name}: ${error instanceof Error ? error.message : "Não foi possível ler"}`); continue; }
           let extractedRows: PaymentRow[];
           let warnings: string[] = prepared.warnings ?? [];
           extractedRows = prepared.rows ?? [];
-          if (prepared.text || prepared.base64) {
-            // A terminal AI error stops the whole import; no retries or substitute models.
-            const output = await extract({ data: { name: file.name, text: prepared.text, mimeType: prepared.mimeType as "application/pdf" | "image/png" | "image/jpeg" | undefined, base64: prepared.base64 } });
-            warnings = [...warnings, ...output.warnings];
-            extractedRows = [...extractedRows, ...output.rows.map(r => ({ ...r, source: file.name, reviewed: false }))];
-          }
           if (!extractedRows.length) warnings.push("Nenhum pagamento identificado. Confira o documento original.");
           const run = await saveNewFiscalRun(file, hash, extractedRows, warnings);
           open(run); await history.refetch();
@@ -144,6 +138,7 @@ export function FiscalDocumentReader({ onSaveFile }: Props) {
       {notices.length > 0 && <ul role="alert" className="space-y-1 border-l-2 border-destructive pl-3 text-sm">{notices.map((n, i) => <li key={i}>{n}</li>)}</ul>}
       <div className="flex items-center gap-2"><Input aria-label="Pesquisar processamentos" placeholder="Pesquisar por hóspede, CPF, UH ou arquivo" value={search} onChange={e => setSearch(e.target.value)} /><Button variant="outline" size="icon" aria-label="Atualizar histórico" title="Atualizar histórico" disabled={busy} onClick={() => void history.refetch()}><RefreshCw className="size-4" /></Button></div>
       <h3 className="text-sm font-semibold">Histórico de processamentos · {history.data?.count ?? 0}</h3>
+      <ImportDateFilter value={importDates} onChange={value => { setImportDates(value); setPage(0); }} />
       {history.isPending ? <div className="flex items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" />Carregando histórico</div> : history.error ? <p role="alert" className="text-sm text-destructive">Não foi possível carregar o histórico: {history.error.message}</p> : (
         <div className="fiscal-history min-w-0 max-w-full rounded-md border">
           <table className="w-full text-sm"><thead className="bg-muted text-left"><tr>{["Documento", "Data / hora", "Pagamentos", "Conferência", ""].map((h, i) => <th key={i} className="p-3 font-medium">{h}</th>)}</tr></thead><tbody>

@@ -1,4 +1,5 @@
 # Intelligent fiscal document reader
+- [ ] Show extracted apartment/UH in bold beside guest names on imported results, preserving standard copy fields.
 - [ ] Replace fiscal import AI fallback with local document text/OCR reading without AI credits; verify imports and unchanged calculations.
 - [ ] Add import-date filters to fiscal history and quick guest/apartment search; verify date boundaries and standard copy preservation.
 - [x] Extract Hóspede instead of Responsável and add pencil editing with immediate recalculation; source corrections, saved values and reload verified, with guest-priority tests.

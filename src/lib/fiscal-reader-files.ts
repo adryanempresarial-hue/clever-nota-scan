@@ -1,5 +1,6 @@
 import type { PaymentRow } from "./fiscal-reader";
 import { parsePaymentSheet } from "./fiscal-reader";
+import { parseFiscalText } from "./fiscal-reader-local";
 
 export const READER_ACCEPT = ".pdf,.xlsx,.xls,.csv,.docx,.jpg,.jpeg,.png,.zip,.rar";
 export async function unpackDocuments(file: File): Promise<{ files: File[]; warnings: string[] }> {
@@ -21,7 +22,7 @@ export async function unpackDocuments(file: File): Promise<{ files: File[]; warn
   }
   return { files, warnings };
 }
-export async function prepareDocument(file: File): Promise<{ rows?: PaymentRow[]; text?: string; mimeType?: string; base64?: string; warnings?: string[] }> {
+export async function prepareDocument(file: File, progress?: (message: string) => void): Promise<{ rows: PaymentRow[]; warnings?: string[] }> {
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (["xlsx", "xls", "csv"].includes(ext ?? "")) {
     const XLSX = await import("xlsx");
@@ -35,8 +36,8 @@ export async function prepareDocument(file: File): Promise<{ rows?: PaymentRow[]
       else if (matrix.length) unmatched.push(`Planilha ${name}:\n${matrix.map(r => r.join("\t")).join("\n")}`);
     }
     if (!unmatched.length) return { rows: all };
-    // Keep exact local results and analyze only the unmatched worksheets.
-    return { rows: all, text: unmatched.join("\n\n") };
+    const fallback = unmatched.map(text => parseFiscalText(text, file.name));
+    return { rows: [...all, ...fallback.flatMap(result => result.rows)], warnings: fallback.flatMap(result => result.warnings) };
   }
   if (ext === "docx") {
     const { unzipSync, strFromU8 } = await import("fflate");
@@ -46,12 +47,13 @@ export async function prepareDocument(file: File): Promise<{ rows?: PaymentRow[]
     const parsed = new DOMParser().parseFromString(strFromU8(xml), "application/xml");
     const text = Array.from(parsed.getElementsByTagName("w:p")).map(p => Array.from(p.getElementsByTagName("w:t")).map(t => t.textContent).join(" ")).join("\n");
     if (!text.trim()) throw new Error("DOCX sem texto: envie as imagens incorporadas como JPG/PNG ou PDF.");
-    return { text, warnings: Object.keys(entries).some(name => name.startsWith("word/media/")) ? ["O DOCX contém imagens incorporadas não analisadas. Envie-as como JPG/PNG ou PDF e confira o original."] : [] };
+    const result = parseFiscalText(text, file.name);
+    return { rows: result.rows, warnings: [...result.warnings, ...(Object.keys(entries).some(name => name.startsWith("word/media/")) ? ["O DOCX contém imagens incorporadas não analisadas. Envie-as como JPG/PNG ou PDF e confira o original."] : [])] };
   }
   const mimeType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : ["jpg", "jpeg"].includes(ext ?? "") ? "image/jpeg" : "";
   if (!mimeType) throw new Error(`${file.name}: formato não suportado.`);
-  const base64 = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] ?? ""); reader.onerror = () => reject(new Error("Falha ao ler arquivo")); reader.readAsDataURL(file);
-  });
-  return { mimeType, base64 };
+  const { localPdfPages, localOcr } = await import("./fiscal-reader-ocr");
+  const pages = ext === "pdf" ? await localPdfPages(file, progress) : [{ text: await localOcr(file, progress), page: "1", ocr: true }];
+  const results = pages.map(page => parseFiscalText(page.text, file.name, page.page));
+  return { rows: results.flatMap(result => result.rows), warnings: [...results.flatMap(result => result.warnings), ...(pages.some(page => page.ocr) ? ["Reconhecimento de texto local: confira caracteres, nomes e valores no original."] : [])] };
 }

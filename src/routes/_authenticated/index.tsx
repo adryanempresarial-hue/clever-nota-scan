@@ -5,6 +5,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { loadAllFiscalRuns } from "@/lib/fiscal-reader-store";
 import { scannedSearch, scannedCopyText } from "@/lib/scanned-search";
+import { ImportDateFilter } from "@/components/ImportDateFilter";
+import type { ImportDates } from "@/lib/import-dates";
 import {
   Upload,
   FileText,
@@ -274,6 +276,7 @@ async function parseSheetRecords(file: File): Promise<NotaRecord[]> {
       row.forEach((cell, c) => {
         const val = cleanCell(cell);
         if (!val) return;
+        if (/^(uh|hub|apto|apartamento|numerodauh|unidadehabitacional|quarto)$/.test(norm(headers[c] ?? ""))) rec.uh = val;
         const key = keys[c] ?? null;
         if (key === "firstName") {
           first = val;
@@ -1243,7 +1246,7 @@ function RecordCard({ record, onDelete }: { record: NotaRecord; onDelete?: () =>
       <div className="flex items-center justify-between gap-2 pb-2 border-b">
         <div className="min-w-0 flex-1">
           {record.nome ? (
-            <div className="font-semibold text-foreground truncate">{record.nome}</div>
+            <div className="font-semibold text-foreground break-words">{record.nome}{record.uh && ` ( UH ${record.uh} )`}</div>
           ) : (
             <div className="font-semibold text-muted-foreground italic">Sem nome identificado</div>
           )}
@@ -1393,6 +1396,8 @@ function QuickSnippets({
   const { records: crmRecords } = useCrmRecords();
   const [query, setQuery] = useState("");
 
+  const [importDates, setImportDates] = useState<ImportDates>({});
+
   const fiscalHistory = useQuery({
     queryKey: ["quick-search-fiscal-history"],
     queryFn: loadAllFiscalRuns,
@@ -1400,8 +1405,8 @@ function QuickSnippets({
     staleTime: 0,
   });
   const hits = useMemo(() => scannedSearch(query, notaRecords, crmRecords,
-    (fiscalHistory.data ?? []).flatMap(run => run.corrected_rows)),
-    [query, notaRecords, crmRecords, fiscalHistory.data]);
+    (fiscalHistory.data ?? []).flatMap(run => run.corrected_rows.map(row => ({ ...row, importedAt: run.created_at }))), importDates),
+    [query, notaRecords, crmRecords, fiscalHistory.data, importDates]);
 
   useEffect(() => {
     setMounted(true);
@@ -1494,6 +1499,9 @@ function QuickSnippets({
           )}
         </div>
         {query.trim().length >= 2 && (
+          <ImportDateFilter value={importDates} onChange={setImportDates} />
+        )}
+        {query.trim().length >= 2 && (
           <div className="rounded-md border bg-muted/20 max-h-80 overflow-y-auto divide-y">
             {fiscalHistory.isFetching && <p role="status" className="p-3 text-xs text-muted-foreground">Buscando apartamentos…</p>}
             {fiscalHistory.error && <p role="alert" className="p-3 text-xs text-destructive">Não foi possível consultar os apartamentos. Tente novamente.</p>}
@@ -1506,7 +1514,8 @@ function QuickSnippets({
                 <div key={h.key} className="p-3 space-y-1.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{h.title}</div>
+                      <div className="text-sm font-semibold break-words">{h.title}{h.apartments.length > 0 && ` ( UH ${h.apartments.join(", ")} )`}</div>
+                      {h.importedAt && <div className="text-xs text-muted-foreground">Importado em {new Date(h.importedAt).toLocaleString("pt-BR")}</div>}
                       {h.subtitle && (
                         <div className="text-xs text-muted-foreground truncate">
                           {h.subtitle}

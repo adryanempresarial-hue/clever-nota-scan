@@ -32,7 +32,7 @@ const RecordSchema = z.object({
   valor: z.string().optional().nullable(),
 });
 
-export type NotaRecord = z.infer<typeof RecordSchema> & { _arquivo: string };
+export type NotaRecord = z.infer<typeof RecordSchema> & { _arquivo: string; uh?: string | null };
 
 const SYSTEM = `Você é um extrator OCR especializado em documentos brasileiros (notas fiscais, comprovantes, RGs, CNHs, cartões de visita, contratos, fichas cadastrais).
 

@@ -12,3 +12,10 @@ test("name search joins the matching apartment without adding it to standard cop
 test("different CPFs must not join apartments even when names match", () => {
   expect(matchingApartments("Fabiana Ramos Alves", "99999999999", [fiscal])).toEqual([]);
 });
+test("quick search dates scope contacts and apartments without modifying standard copy", () => {
+  const old = new Date(2026, 9, 20, 12).toISOString(), current = new Date(2026, 9, 21, 12).toISOString();
+  const contacts = [{ nome: fiscal.guest, cpf: fiscal.cpf, _createdAt: old }, { nome: fiscal.guest, cpf: fiscal.cpf, _createdAt: current, _id: "new" }];
+  const hits = scannedSearch("Fabiana", contacts, [], [{ ...fiscal, importedAt: old }, { ...fiscal, uh: "022", importedAt: current }], { from: new Date(2026, 9, 21), to: new Date(2026, 9, 21) });
+  expect(hits).toHaveLength(1); expect(hits[0].key).toBe("nota-new"); expect(hits[0].apartments).toEqual(["022"]);
+  expect(scannedCopyText(hits[0])).toBe("Nome: Fabiana Ramos Alves\nCPF: 05310306790");
+});

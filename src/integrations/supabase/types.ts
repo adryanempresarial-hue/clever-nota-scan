@@ -238,6 +238,7 @@ export type Database = {
           nota_fiscal: string | null
           numero: string | null
           telefone: string | null
+          uh: string | null
           user_id: string
           valor: string | null
         }
@@ -260,6 +261,7 @@ export type Database = {
           nota_fiscal?: string | null
           numero?: string | null
           telefone?: string | null
+          uh?: string | null
           user_id: string
           valor?: string | null
         }
@@ -282,6 +284,7 @@ export type Database = {
           nota_fiscal?: string | null
           numero?: string | null
           telefone?: string | null
+          uh?: string | null
           user_id?: string
           valor?: string | null
         }
