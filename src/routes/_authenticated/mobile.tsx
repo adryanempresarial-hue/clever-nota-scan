@@ -454,24 +454,14 @@ function MobileScanner() {
           ],
         },
       });
-      const raw = res.records[0];
-      if (!raw) {
+      const contacts = res.records.map(raw => sanitizeRecord(raw)).filter(rec => FIELD_ORDER.some(k => rec[k]) || rec.uh);
+      if (!contacts.length) {
         setStatus("Nada identificado, tente reposicionar");
         return;
       }
-      const rec = sanitizeRecord(raw);
-      const hasAny = FIELD_ORDER.some((k) => rec[k]);
-      if (!hasAny) {
-        setStatus("Documento ilegível, ajuste a iluminação");
-        return;
-      }
-      if (isDuplicate(rec)) {
-        setStatus("Já capturado, aponte para outro documento");
-        return;
-      }
-      await addOne(rec);
-      setStatus(`✓ ${rec.nome ?? "Documento"} capturado`);
-      toast.success(`Capturado: ${rec.nome ?? "documento"}`);
+      for (const rec of contacts) await addOne(rec);
+      setStatus(`✓ ${contacts.length} contato(s) capturado(s)`);
+      toast.success(`Capturado: ${contacts[0]?.nome || "documento"} · ${contacts.length} contato(s)`);
       // Small cooldown after a save so the same page isn't re-read instantly
       lastSentAtRef.current = Date.now() + 800;
     } catch (e) {

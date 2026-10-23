@@ -1,4 +1,5 @@
 import type { NotaRecord } from "@/lib/nota.functions";
+import { mergeContactPhones } from "./contact-values";
 
 const LOWER_WORDS = new Set(["de", "da", "do", "das", "dos", "e", "di", "du"]);
 export const titleCase = (s: string) =>
@@ -51,16 +52,7 @@ export function formatCep(v: string): string {
 
 /** Celular/telefone: descarta +55, zeros de operadora e formata (DD) 00000-0000 */
 export function formatPhone(v: string): string {
-  let d = digitsOf(v);
-  if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
-  while (d.length > 11 && d.startsWith("0")) d = d.slice(1);
-  if (d.length === 12 && d.startsWith("0")) d = d.slice(1);
-  if (d.length > 11) d = d.slice(-11);
-  if (d.length === 11 && d.startsWith("0")) d = d.slice(1);
-  if (d.length === 9 || d.length === 8) return d.length === 9 ? `${d.slice(0, 5)}-${d.slice(5)}` : `${d.slice(0, 4)}-${d.slice(4)}`;
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return v;
+  return mergeContactPhones([v]);
 }
 
 /** Máscara progressiva enquanto digita: (DD) 00000-0000 */
@@ -77,9 +69,11 @@ export function maskPhoneInput(v: string): string {
 
 /** Válido quando vazio (opcional) ou 10/11 dígitos: DDD + número. */
 export function isValidPhone(v: string): boolean {
-  const d = digitsOf(v);
-  if (!d) return true;
-  return d.length === 10 || d.length === 11;
+  if (!v.trim()) return true;
+  return v.split(/\s*;\s*/).every(phone => {
+    const d = digitsOf(phone);
+    return d.length === 10 || d.length === 11;
+  });
 }
 
 /** Normaliza e limpa um registro: sem "null", CPF/CEP com zeros preservados. */

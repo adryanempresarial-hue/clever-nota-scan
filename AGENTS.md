@@ -20,3 +20,4 @@
 - Keep fiscal pencil edits on source credits/payments; derived-value pencils open their underlying inputs so totals, splits and exports remain consistent with original preservation.
 - Keep import-date bounds in a shared pure module, using local calendar days and an exclusive next-day upper bound so quick search and fiscal history agree without affecting closing export selection.
 - Store extracted contact UH separately from address number and copied fields, preserving leading zeros so guest headings never infer apartments from residential numbers.
+- Keep contact spreadsheet parsing in the browser-safe contact-import module and contact value formatting in contact-values; preserve multiple contact values in existing text fields so no schema change or migration is needed.
