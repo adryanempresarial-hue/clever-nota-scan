@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { ContactRecordSchema, ContactExtractionSchema, assembleExtractedContacts } from "./contact-extraction";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const FileInput = z.object({
   name: z.string(),
@@ -13,28 +15,11 @@ const Input = z.object({
   files: z.array(FileInput).min(1).max(10),
 });
 
-const RecordSchema = z.object({
-  dtAlteracao: z.string().optional().nullable(),
-  dtCadastro: z.string().optional().nullable(),
-  nome: z.string().optional().nullable(),
-  cpf: z.string().optional().nullable(),
-  cnpj: z.string().optional().nullable(),
-  email: z.string().optional().nullable(),
-  telefone: z.string().optional().nullable(),
-  cep: z.string().optional().nullable(),
-  endereco: z.string().optional().nullable(),
-  numero: z.string().optional().nullable(),
-  bairro: z.string().optional().nullable(),
-  cidade: z.string().optional().nullable(),
-  estado: z.string().optional().nullable(),
-  notaFiscal: z.string().optional().nullable(),
-  data: z.string().optional().nullable(),
-  valor: z.string().optional().nullable(),
-});
-
-export type NotaRecord = z.infer<typeof RecordSchema> & { _arquivo: string; uh?: string | null };
+export type NotaRecord = z.infer<typeof ContactRecordSchema> & { _arquivo: string };
 
 const SYSTEM = `Você é um extrator OCR especializado em documentos brasileiros (notas fiscais, comprovantes, RGs, CNHs, cartões de visita, contratos, fichas cadastrais).
+
+Retorne um array records com TODOS os contatos/linhas em TODAS as páginas, não apenas um contato por arquivo. Cada pessoa ou linha de cadastro é um registro independente; nunca misture dados de pessoas diferentes. Preserve registros parciais. Para cada contato, transcreva TODOS os e-mails e TODOS os telefones, separados por ponto e vírgula, sem escolher apenas um. Extraia UH/apartamento no campo uh, preservando zeros (021), separado do numero residencial. Preencha também todos os componentes legíveis do endereço. Nunca invente, complete dígitos ilegíveis ou transfira dados de outro contato. Campo ausente fica vazio, não escreva a palavra null.
 
 EXTRAIA SEMPRE estes 6 campos prioritários, nesta ordem:
 1. nome      — nome completo da pessoa física OU razão social/nome fantasia. Prefira destinatário/cliente/tomador/contratante/titular. NUNCA deixe vazio se houver QUALQUER nome legível.
@@ -63,6 +48,7 @@ REGRA CRÍTICA PARA NÚMEROS (nunca abrevie):
 - Isso vale para numero, valor, notaFiscal, quantidades e qualquer outro campo numérico.`;
 
 export const extractFromFiles = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
   .handler(async ({ data }): Promise<{ records: NotaRecord[] }> => {
     const key = process.env.LOVABLE_API_KEY;
@@ -75,7 +61,7 @@ export const extractFromFiles = createServerFn({ method: "POST" })
       const isPdf = file.mimeType === "application/pdf";
       const { object } = await generateObject({
         model,
-        schema: RecordSchema,
+        schema: ContactExtractionSchema,
         system: SYSTEM,
         messages: [
           {
@@ -83,7 +69,7 @@ export const extractFromFiles = createServerFn({ method: "POST" })
             content: [
               {
                 type: "text",
-                text: "Leia TODO o documento abaixo e extraia TODOS os campos visíveis. Não deixe o campo nome vazio se houver qualquer nome no documento.",
+                text: "Varra todas as páginas e todas as linhas. Retorne records com cada contato identificado e todos os campos visíveis (nome, CPF/CNPJ, todos os telefones, todos os e-mails, CEP, endereço, número residencial e UH). Confira a última linha e os rodapés. Não omita contatos parciais nem invente dados.",
               },
               isPdf
                 ? { type: "file", data: dataUrl, mediaType: file.mimeType, filename: file.name }
@@ -94,9 +80,6 @@ export const extractFromFiles = createServerFn({ method: "POST" })
       });
       return object;
     };
-
-    const isEmpty = (obj: Record<string, unknown>) =>
-      Object.values(obj).every((v) => v == null || v === "");
 
     const LOWER = new Set(["de", "da", "do", "das", "dos", "e", "di", "du"]);
     const toTitle = (s: string) =>
@@ -121,26 +104,15 @@ export const extractFromFiles = createServerFn({ method: "POST" })
     const results = await Promise.all(
       data.files.map(async (file) => {
         try {
-          let object = await extractOne(file);
-          const missingName = !String((object as Record<string, unknown>).nome ?? "").trim();
-          if (isEmpty(object as Record<string, unknown>) || missingName) {
-            console.log("[NOTA] RETRY (vazio ou sem nome) para", file.name);
-            const retry = await extractOne(file);
-            const retryName = String((retry as Record<string, unknown>).nome ?? "").trim();
-            if (retryName || isEmpty(object as Record<string, unknown>)) {
-              object = { ...object, ...Object.fromEntries(Object.entries(retry).filter(([, v]) => v != null && v !== "")) } as typeof object;
-            }
-          }
-          normalize(object as Record<string, unknown>);
-          console.log("[NOTA] EXTRACTED_DATA", file.name, JSON.stringify(object));
-          return { ...object, _arquivo: file.name } as NotaRecord;
+          const object = await extractOne(file);
+          const contacts = assembleExtractedContacts(object.records, file.name);
+          if (!contacts.length) throw new Error(`Nenhum campo legível identificado em ${file.name}. Confira o original e envie novamente com melhor nitidez.`);
+          return contacts.map(contact => normalize(contact) as NotaRecord);
         } catch (e) {
-          console.error("extract failed for", file.name, e);
-          return { _arquivo: file.name } as NotaRecord;
+          throw new Error(`${file.name}: ${e instanceof Error ? e.message : "Não foi possível ler este documento. Envie novamente."}`);
         }
       }),
     );
 
-    console.log("[NOTA] OCR_RESULT total registros:", results.length);
-    return { records: results };
+    return { records: results.flat() };
   });

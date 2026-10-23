@@ -113,7 +113,7 @@ const nameScore = (v: string) => {
 /** Cabeçalhos: procura a melhor linha e junta com a linha seguinte (cabeçalho em 2 níveis). */
 const isHeaderCell = (value: string) => {
   const n = norm(value);
-  return Boolean(n && mapHeader(value) && (SHEET_COLUMN_MAP[n] || FIRST_NAME_RE.test(n) || LAST_NAME_RE.test(n) || /^(?:nome|hospede|cpf|cnpj|email|telefone|fone|celular|cep|endereco|numero|uh|hub|apto|apartamento|unidade|dt|data|bairro|cidade|estado)/.test(n)));
+  return Boolean(n && mapHeader(value) && (mapHeader(value) === "uh" || SHEET_COLUMN_MAP[n] || FIRST_NAME_RE.test(n) || LAST_NAME_RE.test(n) || /^(?:nome|hospede|cpf|cnpj|email|telefone|fone|celular|cep|endereco|numero|uh|hub|apto|apartamento|unidade|dt|data|bairro|cidade|estado)/.test(n)));
 };
 
 function findHeaderRow(matrix: unknown[][]): number {
