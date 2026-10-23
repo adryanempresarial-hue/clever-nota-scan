@@ -27,7 +27,7 @@ const SHEET_COLUMN_MAP: Record<string, keyof NotaRecord> = {
   endereco: "endereco", logradouro: "endereco", rua: "endereco",
   numero: "numero", num: "numero", n: "numero", nr: "numero", nro: "numero",
   numerodaresidencia: "numero", numeroresidencia: "numero", numeroendereco: "numero",
-  numerodologradouro: "numero", numerodoimovel: "numero", enderecoNumero: "numero",
+  numerodologradouro: "numero", numerodoimovel: "numero", endereconumero: "numero",
   bairro: "bairro",
   cidade: "cidade", municipio: "cidade",
   estado: "estado", uf: "estado",
@@ -46,7 +46,7 @@ const SHEET_FUZZY: [RegExp, keyof NotaRecord][] = [
   [/(mail)/, "email"],
   [/(tel|cel|fone|whats|zap)/, "telefone"],
   [/(cep)/, "cep"],
-  [/^(?:numerod[oa]|nro|nr|numero)?(?:uh|hub|apto|apartamento|unidadehabitacional|unidade|quarto)(?:numero|nro|nr|hospede|cliente)?$/, "uh"],
+  [/^(?:numerod[oa]|nro|nr|n|numero)?(?:uh|hub|apto|apartamento|unidadehabitacional|unidade|quarto)(?:numero|nro|nr|hospede|cliente)?$/, "uh"],
   [/(^n$|^nr$|^nro$|numero|num|imovel)/, "numero"],
   [/(bairro)/, "bairro"],
   [/(cidade|municipio)/, "cidade"],
@@ -121,6 +121,8 @@ function findHeaderRow(matrix: unknown[][]): number {
   let best = -1;
   let bestScore = 1;
   for (let i = 0; i < limit; i++) {
+    const nonempty = (matrix[i] ?? []).map(c => cleanCell(c)).filter(Boolean);
+    if (!nonempty.length || !nonempty.every(isHeaderCell)) continue;
     const score = (matrix[i] ?? []).reduce<number>(
       (acc, c) => acc + (isHeaderCell(String(c ?? "")) ? 1 : 0),
       0,
@@ -128,6 +130,7 @@ function findHeaderRow(matrix: unknown[][]): number {
     if (score > bestScore) {
       bestScore = score;
       best = i;
+      break;
     }
   }
   return best;
@@ -246,7 +249,7 @@ export function parseContactMatrix(matrix: unknown[][], source: string): NotaRec
         filled++;
       }
 
-      if (first || last) {
+      if (!rec.nome && (first || last)) {
         rec.nome = [first, last].filter(Boolean).join(" ");
         filled++;
       }
