@@ -1,4 +1,5 @@
 # Intelligent fiscal document reader
+- [ ] Reinforce complete contact field extraction and correct missing UH aliases, with regression tests and authenticated import verification.
 - [x] Show extracted apartment/UH in bold beside guest names on imported spreadsheet and fiscal results; verified source UH 021, persistence after reload and unchanged standard copy fields.
 - [x] Replace fiscal import AI fallback with local document text/OCR reading without AI credits; authenticated PDF and PNG imports saved correct values with zero AI calls, and 24 domain tests pass. Unrecognized layouts remain flagged for review.
 - [x] Add import-date filters to fiscal history and quick guest/apartment search; verified calendar controls, inclusive day boundaries, new-contact exclusion with older dates and standard copy preservation.
