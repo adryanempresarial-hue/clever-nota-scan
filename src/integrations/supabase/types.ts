@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      apartment_reader_runs: {
+        Row: {
+          created_at: string
+          id: string
+          original_rows: Json
+          page_count: number
+          period: string
+          reviewed_rows: Json
+          source_files: Json
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          original_rows?: Json
+          page_count?: number
+          period?: string
+          reviewed_rows?: Json
+          source_files?: Json
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          original_rows?: Json
+          page_count?: number
+          period?: string
+          reviewed_rows?: Json
+          source_files?: Json
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_user_connections: {
         Row: {
           account_email: string | null
