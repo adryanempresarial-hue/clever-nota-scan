@@ -1,4 +1,5 @@
 # Intelligent fiscal document reader
+- [x] Add selected-period priority buttons in Processar and Salvos without changing contact data or exports.
 - [x] Deliver isolated Apartment Reader: multi-page camera/import, image correction, green-highlight OCR, unique UH review, private history and verified PDF/Excel downloads; authenticated image/PDF OCR, camera simulator, save/reload, desktop/mobile preview and downloads verified, 42 tests pass. Physical Android/iPhone camera and original reference documents require user-side validation.
 - [ ] Validate complete contact extraction against the user's original document with missing UH; regression tests pass, but the original data file is not attached (only the Apartment Reader specification is available).
 - [x] Show extracted apartment/UH in bold beside guest names on imported spreadsheet and fiscal results; verified source UH 021, persistence after reload and unchanged standard copy fields.
