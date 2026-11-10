@@ -1,6 +1,6 @@
 # Intelligent fiscal document reader
-- [ ] Deliver isolated Apartment Reader: multi-page camera/import, image correction, green-highlight OCR, unique UH review, private history and verified PDF/Excel downloads.
-- [ ] Reinforce complete contact field extraction and correct missing UH aliases, with regression tests and authenticated import verification.
+- [x] Deliver isolated Apartment Reader: multi-page camera/import, image correction, green-highlight OCR, unique UH review, private history and verified PDF/Excel downloads; authenticated image/PDF OCR, camera simulator, save/reload, desktop/mobile preview and downloads verified, 42 tests pass. Physical Android/iPhone camera and original reference documents require user-side validation.
+- [ ] Validate complete contact extraction against the user's original document with missing UH; regression tests pass, but the original data file is not attached (only the Apartment Reader specification is available).
 - [x] Show extracted apartment/UH in bold beside guest names on imported spreadsheet and fiscal results; verified source UH 021, persistence after reload and unchanged standard copy fields.
 - [x] Replace fiscal import AI fallback with local document text/OCR reading without AI credits; authenticated PDF and PNG imports saved correct values with zero AI calls, and 24 domain tests pass. Unrecognized layouts remain flagged for review.
 - [x] Add import-date filters to fiscal history and quick guest/apartment search; verified calendar controls, inclusive day boundaries, new-contact exclusion with older dates and standard copy preservation.
