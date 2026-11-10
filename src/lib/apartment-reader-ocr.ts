@@ -25,9 +25,9 @@ export async function readApartmentDocuments(files: File[], progress: (percent: 
     corePath: new URL("/ocr/", window.location.origin).href,
     langPath: new URL("/ocr/", window.location.origin).href,
   });
-  await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
   const rows: ReturnType<typeof extractApartmentRows> = []; const warnings: string[] = []; let pageCount = 0, period = "";
   try {
+    await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
     for (const [fileIndex, file] of files.entries()) {
       const readPage = async (canvas: HTMLCanvasElement, page: number, count: number) => {
         pageCount++;
@@ -46,6 +46,7 @@ export async function readApartmentDocuments(files: File[], progress: (percent: 
         const { data } = await worker.recognize(copy, {}, { text: true, blocks: true });
         const words: OcrWord[] = (data.blocks ?? []).flatMap(block => block.paragraphs.flatMap(p => p.lines.flatMap(l => l.words.map(w => ({ text: w.text, confidence: w.confidence, bbox: w.bbox })))));
         const parsed = extractApartmentRows(words, bands, file.name, page);
+        if (!parsed.length) parsed.push({ id: `${file.name}:${page}:unreadable`, uh: "", value: "", source: file.name, page, confidence: 0, reviewed: false, reason: "Página sem UH reconhecida: confira e preencha no original" });
         rows.push(...parsed);
         if (!parsed.length) warnings.push(`${file.name} · página ${page}: nenhuma UH identificada; confira a página original.`);
         if (!bands.length) warnings.push(`${file.name} · página ${page}: destaque verde não identificado.`);

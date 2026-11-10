@@ -41,3 +41,14 @@ test("detects fluorescent green but not plain white or blue", () => {
 test("period names consolidate into the requested filename", () => {
   expect(apartmentFilename("30 OUTUBRO A 02 NOVEMBRO", "pdf")).toBe("RELACAO_DE_UHS_30_OUTUBRO_A_02_NOVEMBRO.pdf");
 });
+test("unassigned highlighted expense remains pending rather than being lost", () => {
+  const rows = extractApartmentRows([word("TOTAL", 0, 20), word("DE", 80, 20), word("DESPESAS", 160, 20), word("7.252,62", 260, 20)], [{ x0: 250, x1: 350, y0: 18, y1: 40 }], "photo.jpg", 1);
+  expect(rows).toHaveLength(1); expect(rows[0].uh).toBe(""); expect(rows[0].value).toBe("7.252,62"); expect(consolidateApartments(rows).pending).toBe(1);
+});
+test("apartment exports preserve the source leading zero", () => {
+  expect(apartmentExportRows([row("021", "4.421,01")])[0][0]).toBe("UH021");
+});
+test("parallel UHs never silently share the wrong highlighted value", () => {
+  const rows = extractApartmentRows([word("UH525", 0, 0), word("UH524", 500, 0), word("TOTAL", 0, 20), word("DE", 80, 20), word("DESPESAS", 160, 20), word("4.421,01", 260, 20)], [{ x0: 250, x1: 350, y0: 18, y1: 40 }], "photo.jpg", 1);
+  expect(rows).toHaveLength(2); expect(rows.every(r => r.value === "")).toBe(true); expect(consolidateApartments(rows).pending).toBe(2);
+});
