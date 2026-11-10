@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { loadAllFiscalRuns } from "@/lib/fiscal-reader-store";
 import { scannedSearch, scannedCopyText } from "@/lib/scanned-search";
 import { ImportDateFilter } from "@/components/ImportDateFilter";
+import { prioritizePeriod } from "@/lib/period-order";
 import type { ImportDates } from "@/lib/import-dates";
 import {
   Upload,
@@ -35,6 +36,7 @@ import {
   CalendarDays,
   MapPin,
   AtSign,
+  ArrowUpToLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -214,6 +216,8 @@ function NotaTool() {
   } = useCloudRecords();
   // Ordena por número do apartamento (HUB): 21 → 612, e o 200 sempre por último
   const records = useMemo(() => sortByApartment(rawRecords), [rawRecords]);
+  const [firstPeriod, setFirstPeriod] = useState("");
+  const orderedPeriods = useMemo(() => prioritizePeriod(groupByPeriod(records), firstPeriod), [records, firstPeriod]);
   const {
     files: cloudFiles,
     loading: loadingFiles,
@@ -692,7 +696,7 @@ function NotaTool() {
                   </div>
                 </div>
 
-                {groupByPeriod(records).map((g) => (
+                {orderedPeriods.map((g) => (
                   <div key={g.label} className="space-y-3">
                     <div className="flex items-center gap-2 border-b pb-2">
                       <CalendarDays className="w-4 h-4 text-primary" />
@@ -700,6 +704,9 @@ function NotaTool() {
                       <span className="text-xs text-muted-foreground">
                         ({g.items.length})
                       </span>
+                      <Button variant="outline" size="sm" className="ml-auto shrink-0" aria-pressed={firstPeriod === g.label} onClick={() => setFirstPeriod(firstPeriod === g.label ? "" : g.label)}>
+                        <ArrowUpToLine className="mr-1 size-4" />{firstPeriod === g.label ? "Restaurar ordem" : "Colocar primeiro"}
+                      </Button>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       {g.items.map((r, idx) => (
@@ -747,7 +754,7 @@ function NotaTool() {
                     </Button>
                   </div>
                 </div>
-                {groupByPeriod(records).map((g) => (
+                {orderedPeriods.map((g) => (
                   <div key={g.label} className="space-y-3">
                     <div className="flex items-center gap-2 border-b pb-2">
                       <CalendarDays className="w-4 h-4 text-primary" />
@@ -755,6 +762,9 @@ function NotaTool() {
                       <span className="text-xs text-muted-foreground">
                         ({g.items.length})
                       </span>
+                      <Button variant="outline" size="sm" className="ml-auto shrink-0" aria-pressed={firstPeriod === g.label} onClick={() => setFirstPeriod(firstPeriod === g.label ? "" : g.label)}>
+                        <ArrowUpToLine className="mr-1 size-4" />{firstPeriod === g.label ? "Restaurar ordem" : "Colocar primeiro"}
+                      </Button>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       {g.items.map((r) => (

@@ -22,3 +22,4 @@
 - Store extracted contact UH separately from address number and copied fields, preserving leading zeros so guest headings never infer apartments from residential numbers.
 - Keep contact spreadsheet parsing in the browser-safe contact-import module and contact value formatting in contact-values; preserve multiple contact values in existing text fields so no schema change or migration is needed.
 - Keep Apartment Reader isolated from fiscal/contact extraction, using local color-aware OCR, immutable source rows and private cloud history; unresolved UH/value conflicts must block consolidated exports.
+- Keep selected contact-period priority in a pure presentation helper shared by Processar and Salvos; reordering must not mutate records or export calculations.
