@@ -21,9 +21,10 @@ export function extractApartmentRows(words: OcrWord[], bands: GreenBand[], sourc
   for (const line of lines) line.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
   const anchors = lines.flatMap((line, i) => {
     const text = line.words.map(w => w.text).join(" ");
-    return [...text.matchAll(/\bUH\s*[:\-]?\s*(\d{1,6})\b/gi)].map(m => ({ uh: m[1], index: i }));
+    return [...text.matchAll(/\bUH\s*[:\-]?\s*(\d{1,6})\b/gi)].map(m => ({ uh: m[1], index: i, confidence: Math.min(...line.words.map(w => w.confidence)) }));
   });
-  return anchors.map((anchor, i) => {
+  const multipleColumns = new Set(anchors.map(a => a.index)).size !== anchors.length;
+  const rows = anchors.map((anchor, i) => {
     const section = lines.slice(anchor.index, anchors[i + 1]?.index ?? lines.length);
     const candidates = section.flatMap(line => {
       const greenWords = line.words.filter(w => bands.some(b => overlaps(w.bbox, b)));
@@ -33,11 +34,18 @@ export function extractApartmentRows(words: OcrWord[], bands: GreenBand[], sourc
       return label ? monetaryTokens(highlighted).map(value => ({ value, confidence: Math.min(...line.words.map(w => w.confidence)) })) : [];
     });
     const unique = [...new Map(candidates.map(c => [moneyCents(c.value), c])).values()];
-    const one = unique.length === 1 ? unique[0] : undefined;
-    const confidence = one?.confidence ?? 0;
+    const one = unique.length === 1 && !multipleColumns ? unique[0] : undefined;
+    const confidence = Math.min(one?.confidence ?? 0, anchor.confidence);
     return { id: `${source}:${page}:${i}`, uh: anchor.uh, value: one?.value ?? "", source, page, confidence, reviewed: false,
-      reason: !one ? (unique.length > 1 ? "Mais de um total destacado para esta UH" : "Total de despesas em verde não identificado") : confidence < 80 ? "Leitura com baixa confiança" : "" };
+      reason: multipleColumns ? "UHs em colunas paralelas: confira a associação no original" : !one ? (unique.length > 1 ? "Mais de um total destacado para esta UH" : "Total de despesas em verde não identificado") : confidence < 80 ? "Leitura com baixa confiança" : "" };
   });
+  // Keep identified highlighted totals when the UH was unreadable; never silently discard them.
+  for (const line of lines.filter((_, index) => !anchors.length || index < anchors[0].index)) {
+    if (!/TOTAL\s+(?:DE\s+)?DESPESAS/i.test(line.words.map(w => w.text).join(" "))) continue;
+    const values = monetaryTokens(line.words.filter(w => bands.some(b => overlaps(w.bbox, b))).map(w => w.text).join(" "));
+    for (const value of values) rows.push({ id: `${source}:${page}:unassigned:${rows.length}`, uh: "", value, source, page, confidence: 0, reviewed: false, reason: "UH não identificada para o total destacado" });
+  }
+  return rows;
 }
 
 export function consolidateApartments(rows: ApartmentRow[]) {
@@ -64,7 +72,7 @@ export function consolidateApartments(rows: ApartmentRow[]) {
 export function apartmentExportRows(rows: ApartmentRow[]) {
   const result = consolidateApartments(rows);
   if (!result.units.length || result.pending) throw new Error("Resolva os valores pendentes e as divergências antes de exportar.");
-  return result.units.map(u => ["UH" + apartmentKey(u.uh), displayCents(moneyCents(u.rows[0].value) ?? 0)]);
+  return result.units.map(u => ["UH" + u.uh.trim().replace(/^UH\s*/i, ""), displayCents(moneyCents(u.rows[0].value) ?? 0)]);
 }
 export function apartmentFilename(period: string, kind: "pdf" | "xlsx") {
   const safe = period.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
