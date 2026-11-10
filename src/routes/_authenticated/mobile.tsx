@@ -34,6 +34,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { extractFromFiles, type NotaRecord } from "@/lib/nota.functions";
 import { useCloudRecords, useCloudFiles } from "@/lib/nota-sync";
 import { sanitizeRecord } from "@/lib/record-format";
+import { ApartmentReader } from "@/components/ApartmentReader";
 
 export const Route = createFileRoute("/_authenticated/mobile")({
   head: () => ({
@@ -102,7 +103,7 @@ function MobileScanner() {
   const [streaming, setStreaming] = useState(false);
   const [autoScan, setAutoScan] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [tab, setTab] = useState<"scan" | "list">("scan");
+  const [tab, setTab] = useState<"scan" | "list" | "apartments">("scan");
   const [showExport, setShowExport] = useState(false);
   const {
     records,
@@ -631,7 +632,11 @@ function MobileScanner() {
 
       {/* MAIN CONTENT — swappable via bottom tabs */}
       <main className="flex-1 relative overflow-hidden">
-        {tab === "scan" ? (
+        {tab === "apartments" ? (
+          <div className="absolute inset-0 overflow-y-auto overscroll-contain p-4">
+            <ApartmentReader onSaveFile={saveFile} />
+          </div>
+        ) : tab === "scan" ? (
           <div className="absolute inset-0 bg-black">
             <video
               ref={videoRef}
@@ -946,7 +951,7 @@ function MobileScanner() {
         className="shrink-0 border-t border-border/60 bg-background/90 backdrop-blur-xl"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="grid grid-cols-2 h-16">
+        <div className="grid grid-cols-3 h-16">
           <TabButton
             active={tab === "scan"}
             icon={ScanLine}
@@ -960,6 +965,7 @@ function MobileScanner() {
             badge={records.length}
             onClick={() => setTab("list")}
           />
+          <TabButton active={tab === "apartments"} icon={FileText} label="Leitor de Apartamento" onClick={() => { stopCamera(); setTab("apartments"); }} />
         </div>
       </nav>
     </div>

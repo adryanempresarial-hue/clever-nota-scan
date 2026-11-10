@@ -66,6 +66,7 @@ import { FiscalTab } from "@/components/FiscalTab";
 import { Calculator } from "lucide-react";
 import { ContaAzulTab } from "@/components/ContaAzulTab";
 import { EmailCrmTab } from "@/components/EmailCrmTab";
+import { ApartmentReader } from "@/components/ApartmentReader";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -494,6 +495,10 @@ function NotaTool() {
               <Calculator className="w-4 h-4 mr-2" />
               Cálculo Fiscal
             </TabsTrigger>
+            <TabsTrigger value="apartamentos">
+              <ScanLine className="w-4 h-4 mr-2" />
+              Leitor de Apartamento
+            </TabsTrigger>
             <TabsTrigger value="crm">
               <Users className="w-4 h-4 mr-2" />
               CRM
@@ -780,6 +785,9 @@ function NotaTool() {
 
           <TabsContent value="fiscal">
             <FiscalTab onSaveFile={saveFile} />
+          </TabsContent>
+          <TabsContent value="apartamentos">
+            <ApartmentReader onSaveFile={saveFile} />
           </TabsContent>
 
           <TabsContent value="crm">
